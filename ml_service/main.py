@@ -8,7 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
 
-COMMON_STOP_WORDS: Set[str] = {
+EXPANDED_STOP_WORDS: Set[str] = {
     'and', 'the', 'to', 'a', 'of', 'in', 'for', 'is', 'on', 'that', 'by', 'this',
     'with', 'i', 'you', 'it', 'not', 'or', 'be', 'are', 'from', 'at', 'as', 'your',
     'all', 'have', 'new', 'more', 'an', 'was', 'we', 'will', 'home', 'can', 'us',
@@ -35,8 +35,52 @@ COMMON_STOP_WORDS: Set[str] = {
     'users', 'complete', 'working', 'candidate', 'candidates', 'opportunity',
     'responsibilities', 'qualifications', 'duties', 'role', 'position',
     'requirement', 'requirements', 'skills', 'experience', 'preferred', 'plus',
-    'strong', 'hands-on', 'degree', 'equivalent', 'building', 'scalable', 'products'
+    'strong', 'hands-on', 'degree', 'equivalent', 'building', 'scalable', 'products',
+    # Filter common verbs and filler words
+    'perform', 'performing', 'build', 'large', 'key', 'across', 'various', 'deliver',
+    'delivering', 'assist', 'assisting', 'closely', 'drive', 'driving', 'demonstrated',
+    'deep', 'solid', 'proven', 'lead', 'leading', 'scale', 'scaling', 'real', 'solve',
+    'solving', 'apply', 'applying', 'collaborate', 'collaborating', 'support',
+    'supporting', 'ensure', 'ensuring', 'write', 'writing', 'create', 'creating',
+    'maintain', 'maintaining', 'taking', 'making', 'member', 'related', 'science',
+    'field', 'ability', 'proficient', 'proficiency', 'knowledge', 'understanding',
+    'familiarity', 'background', 'bachelor', 'master', 'phd', 'bootcamp', 'degree',
+    'stem', 'high', 'good', 'excellent', 'fast-paced', 'environment', 'solutions',
+    'impactful', 'complex', 'modern', 'standards', 'practices', 'technologies',
+    'daily', 'active', 'functional', 'technical', 'deliverables', 'methods', 'things'
 }
+
+COMPOUND_PHRASES = [
+    'a/b testing',
+    'statistical modeling',
+    'exploratory data analysis',
+    'hypothesis testing',
+    'predictive modeling',
+    'data visualization',
+    'machine learning',
+    'deep learning',
+    'natural language processing',
+    'computer vision',
+    'vector search',
+    'rag pipelines',
+    'restful apis',
+    'rest apis',
+    'graphql apis',
+    'microservices',
+    'ci/cd pipelines',
+    'ci/cd',
+    'design systems',
+    'cloud infrastructure',
+    'unit testing',
+    'integration testing',
+    'agile/scrum',
+    'data warehousing',
+    'feature engineering',
+    'model evaluation',
+    'distributed systems',
+    'performance tuning',
+    'database indexing'
+]
 
 
 def calculate_raw_cosine(resume_text: str, job_description: str) -> float:
@@ -49,24 +93,41 @@ def calculate_raw_cosine(resume_text: str, job_description: str) -> float:
 
 
 def extract_keywords_and_gaps(resume_text: str, job_description: str) -> Dict[str, List[str]]:
-    """Extract missing and matched keywords between JD and Resume."""
+    """Extract missing and matched skills and technical phrases."""
     resume_lower = resume_text.lower()
     jd_lower = job_description.lower()
 
-    # Extract clean tokens with 2+ characters
+    missing = []
+    matched = []
+    checked_phrases = set()
+
+    # 1. Check compound technical phrases
+    for phrase in COMPOUND_PHRASES:
+        if phrase in jd_lower:
+            checked_phrases.add(phrase)
+            is_matched = phrase in resume_lower
+            formatted = " ".join(w.capitalize() for w in phrase.split())
+            if is_matched:
+                if formatted not in matched:
+                    matched.append(formatted)
+            else:
+                if formatted not in missing:
+                    missing.append(formatted)
+
+    # 2. Extract clean single tokens from JD
     raw_words = re.findall(r'\b[a-zA-Z0-9#+.-]{2,}\b', jd_lower)
-    
-    # Frequency count of meaningful keywords
     freq: Dict[str, int] = {}
     for w in raw_words:
         clean = w.strip(".,;:()[]{}'\"")
-        if len(clean) >= 2 and clean not in COMMON_STOP_WORDS and not clean.isdigit():
+        if (
+            len(clean) >= 2
+            and clean not in EXPANDED_STOP_WORDS
+            and not clean.isdigit()
+            and not any(clean in p for p in checked_phrases)
+        ):
             freq[clean] = freq.get(clean, 0) + 1
 
     sorted_terms = sorted(freq.keys(), key=lambda k: freq[k], reverse=True)
-
-    missing = []
-    matched = []
 
     for term in sorted_terms:
         pattern = r'\b' + re.escape(term) + r'\b'
@@ -82,7 +143,7 @@ def extract_keywords_and_gaps(resume_text: str, job_description: str) -> Dict[st
             if formatted not in matched and len(matched) < 12:
                 matched.append(formatted)
         else:
-            if formatted not in missing and len(missing) < 12:
+            if formatted not in missing and len(missing) < 10:
                 missing.append(formatted)
 
     return {
@@ -93,26 +154,25 @@ def extract_keywords_and_gaps(resume_text: str, job_description: str) -> Dict[st
 
 def compute_realistic_match_score(raw_cosine: float, matched_count: int, missing_count: int) -> float:
     """
-    Calibrate raw geometric cosine similarity into an industry-standard ATS score.
-    Combines:
-    1. Keyword Coverage Ratio (60% weight)
-    2. Calibrated Semantic Overlap (40% weight)
+    Skill-weighted ATS score calculation.
     """
-    total_keywords = matched_count + missing_count
-    if total_keywords > 0:
-        keyword_coverage = (matched_count / total_keywords) * 100.0
-    else:
-        keyword_coverage = raw_cosine * 100.0
+    total = matched_count + missing_count
+    if total == 0:
+        return 50.0
 
-    # Calibrate raw cosine: in TF-IDF, a raw cosine of 0.25 represents ~65-70% real semantic overlap
-    if raw_cosine > 0:
-        calibrated_semantic = min(100.0, ((raw_cosine / 0.36) ** 0.82) * 100.0)
-    else:
-        calibrated_semantic = 0.0
+    skill_coverage = (matched_count / total) * 100.0
 
-    # Balanced blend
-    final_score = (0.55 * keyword_coverage) + (0.45 * calibrated_semantic)
-    return round(min(98.0, max(0.0, final_score)), 1)
+    if skill_coverage >= 80:
+        calibrated = 82.0 + (skill_coverage - 80.0) * 0.8
+    elif skill_coverage >= 50:
+        calibrated = 65.0 + (skill_coverage - 50.0) * 0.55
+    elif skill_coverage >= 25:
+        calibrated = 40.0 + (skill_coverage - 25.0) * 1.0
+    else:
+        calibrated = max(12.0, skill_coverage * 1.6)
+
+    final_score = (0.85 * calibrated) + (0.15 * min(100.0, (raw_cosine / 0.30) * 75.0))
+    return round(min(98.0, max(10.0, final_score)), 1)
 
 
 def generate_lacking_areas(missing_keywords: List[str], score: float) -> List[Dict[str, str]]:
@@ -133,28 +193,29 @@ def generate_lacking_areas(missing_keywords: List[str], score: float) -> List[Di
             "title": "📉 Lack of Targeted Project & Technology Bullet Points",
             "description": "Your listed projects and accomplishments do not demonstrate hands-on experience solving challenges with the required stack."
         })
-        lacking.append({
-            "title": "📊 Unquantified Achievements & Impact Deficit",
-            "description": "Your experience bullet points lack measurable metrics (e.g. latency reduced by X%, system throughput increased by Y, or dollars saved)."
-        })
     elif score < 75:
         lacking.append({
-            "title": "⚠️ Secondary Tooling & Framework Gap",
-            "description": f"While your foundation is solid, you are missing several key secondary tools and methodologies: {top_missing_str or 'secondary requirements'}."
+            "title": "⚠️ Secondary Tooling & Methodology Gap",
+            "description": f"While your core technical stack is strong, you can optimize your score by explicitly incorporating: {top_missing_str or 'secondary requirements'}."
         })
         lacking.append({
-            "title": "🔍 Keyword Density & Phrasing Discrepancies",
+            "title": "🔍 Keyword Density & Phrasing Alignment",
             "description": "Certain industry-standard terms in the job posting are described differently in your resume, reducing semantic match score."
         })
         lacking.append({
-            "title": "📐 Bullet Point Depth & Specificity",
-            "description": "Some project bullets lack technical depth regarding architecture, scale, and specific problem-solving techniques relevant to this role."
+            "title": "📊 Measurable Accomplishments & Scale",
+            "description": "Add more quantifiable metrics (e.g. model accuracy %, latency reduced, datasets processed) to prove real-world production impact."
         })
     else:
         lacking.append({
-            "title": "💡 Minor Keyword Polish Opportunities",
-            "description": f"Your profile is a strong match. Consider naturally including: {top_missing_str or 'specialized terminology'} to achieve peak ATS alignment."
+            "title": "🌟 High Technical Skill Alignment",
+            "description": "Your resume strongly demonstrates the primary technologies and tools required for this role."
         })
+        if top_missing_str:
+            lacking.append({
+                "title": "💡 Minor Polish Opportunities",
+                "description": f"To reach peak 95%+ ATS optimization, consider naturally including mentions of: {top_missing_str}."
+            })
 
     return lacking
 
@@ -164,10 +225,10 @@ def generate_improvement_suggestions(missing_keywords: List[str], score: float) 
     suggestions = []
 
     if missing_keywords:
-        sample_keys = ", ".join(missing_keywords[:5])
+        sample_keys = ", ".join(missing_keywords[:4])
         suggestions.append({
-            "category": "1. Inject Missing Keywords into Experience",
-            "action": f"Incorporate the absent target keywords ({sample_keys}) directly into your Work Experience bullet points and Projects section.",
+            "category": "1. Inject Missing Methodologies into Bullets",
+            "action": f"Incorporate absent terms ({sample_keys}) naturally into your Work Experience bullet points and Projects section.",
             "impact": "High Impact (ATS Ranking)"
         })
     else:
@@ -185,21 +246,15 @@ def generate_improvement_suggestions(missing_keywords: List[str], score: float) 
 
     suggestions.append({
         "category": "3. Restructure Technical Skills Section",
-        "action": "Categorize your skills section into Languages, Frameworks, Cloud & DevOps, and Developer Tools matching the job description order.",
+        "action": "Categorize your skills section into Languages, Libraries/Frameworks, Databases, and Tools matching the job description order.",
         "impact": "Medium Impact (Readability)"
     })
 
-    suggestions.append({
-        "category": "4. Tailor Summary to the Target Job Title",
-        "action": "Align your 3-line professional summary at the very top of your resume with the exact job title and core requirements.",
-        "impact": "Medium Impact (First Impression)"
-    })
-
-    if score < 60:
+    if score < 70:
         suggestions.append({
-            "category": "5. Add Featured Projects Demonstrating Stack",
-            "action": "Include 1-2 practical projects or case studies that explicitly prove your proficiency in the required technologies.",
-            "impact": "High Impact (Skill Proof)"
+            "category": "4. Tailor Summary to the Target Job Title",
+            "action": "Align your 3-line professional summary at the very top of your resume with the exact job title and core requirements.",
+            "impact": "Medium Impact (First Impression)"
         })
 
     return suggestions

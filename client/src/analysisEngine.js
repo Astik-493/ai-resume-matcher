@@ -1,7 +1,7 @@
 // Comprehensive client-side NLP and gap analysis engine
-// Ensures 100% reliable insights even if backend returns partial data
+// Accurate Skill & Domain Keyword Extraction (Filters out conversational verbs and noise)
 
-const STOP_WORDS = new Set([
+const EXPANDED_STOP_WORDS = new Set([
   'and', 'the', 'to', 'a', 'of', 'in', 'for', 'is', 'on', 'that', 'by', 'this',
   'with', 'i', 'you', 'it', 'not', 'or', 'be', 'are', 'from', 'at', 'as', 'your',
   'all', 'have', 'new', 'more', 'an', 'was', 'we', 'will', 'home', 'can', 'us',
@@ -28,35 +28,92 @@ const STOP_WORDS = new Set([
   'users', 'complete', 'working', 'candidate', 'candidates', 'opportunity',
   'responsibilities', 'qualifications', 'duties', 'role', 'position',
   'requirement', 'requirements', 'skills', 'experience', 'preferred', 'plus',
-  'strong', 'hands-on', 'degree', 'equivalent', 'building', 'scalable', 'products'
+  'strong', 'hands-on', 'degree', 'equivalent', 'building', 'scalable', 'products',
+  // Common action verbs & non-skill descriptive words
+  'perform', 'performing', 'build', 'large', 'key', 'across', 'various', 'deliver',
+  'delivering', 'assist', 'assisting', 'closely', 'drive', 'driving', 'demonstrated',
+  'deep', 'solid', 'proven', 'lead', 'leading', 'scale', 'scaling', 'real', 'solve',
+  'solving', 'apply', 'applying', 'collaborate', 'collaborating', 'support',
+  'supporting', 'ensure', 'ensuring', 'write', 'writing', 'create', 'creating',
+  'maintain', 'maintaining', 'taking', 'making', 'member', 'related', 'science',
+  'field', 'ability', 'proficient', 'proficiency', 'knowledge', 'understanding',
+  'familiarity', 'background', 'bachelor', 'master', 'phd', 'bootcamp', 'degree',
+  'stem', 'high', 'good', 'excellent', 'fast-paced', 'environment', 'solutions',
+  'impactful', 'complex', 'modern', 'standards', 'practices', 'technologies',
+  'daily', 'active', 'functional', 'technical', 'deliverables', 'methods', 'things'
 ]);
 
-export function calibrateMatchScore(rawScore, matchedCount, missingCount) {
-  const totalKeywords = matchedCount + missingCount;
-  const keywordRatio = totalKeywords > 0 ? (matchedCount / totalKeywords) * 100 : rawScore;
+// High-value technical concepts and compound phrases
+const COMPOUND_PHRASES = [
+  'a/b testing',
+  'statistical modeling',
+  'exploratory data analysis',
+  'hypothesis testing',
+  'predictive modeling',
+  'data visualization',
+  'machine learning',
+  'deep learning',
+  'natural language processing',
+  'computer vision',
+  'vector search',
+  'rag pipelines',
+  'restful apis',
+  'rest apis',
+  'graphql apis',
+  'microservices',
+  'ci/cd pipelines',
+  'ci/cd',
+  'design systems',
+  'cloud infrastructure',
+  'unit testing',
+  'integration testing',
+  'agile/scrum',
+  'data warehousing',
+  'feature engineering',
+  'model evaluation',
+  'distributed systems',
+  'performance tuning',
+  'database indexing'
+];
 
-  // Calibrate raw score from TF-IDF: In NLP text matching, raw cosine of 0.20-0.30 represents 60-75% real-world alignment
-  let calibratedSemantic = rawScore;
-  if (rawScore > 0 && rawScore < 50) {
-    calibratedSemantic = Math.min(100, Math.pow(rawScore / 36, 0.82) * 100);
+export function extractSkillsAndKeywords(jobDescription, resumeText) {
+  const jdLower = (jobDescription || '').toLowerCase();
+  const resumeLower = (resumeText || '').toLowerCase();
+
+  const missing = [];
+  const matched = [];
+  const checkedPhrases = new Set();
+
+  // 1. Check for compound phrases in the JD
+  for (const phrase of COMPOUND_PHRASES) {
+    if (jdLower.includes(phrase)) {
+      checkedPhrases.add(phrase);
+      const isMatched = resumeLower.includes(phrase);
+      const formatted = phrase
+        .split(' ')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+
+      if (isMatched) {
+        if (!matched.includes(formatted)) matched.push(formatted);
+      } else {
+        if (!missing.includes(formatted)) missing.push(formatted);
+      }
+    }
   }
 
-  // Weighted blend: 55% keyword coverage, 45% semantic context
-  const blended = (0.55 * keywordRatio) + (0.45 * calibratedSemantic);
-  return Math.round(Math.min(Math.max(blended, 10), 98) * 10) / 10;
-}
-
-export function analyzeGapsAndImprovements(resumeText, jobDescription, initialScore) {
-  const resumeLower = (resumeText || '').toLowerCase();
-  const jdLower = (jobDescription || '').toLowerCase();
-
-  // 1. Extract potential keywords from Job Description
+  // 2. Extract clean single tokens from JD
   const rawWords = jdLower.match(/[a-z0-9#+.-]{2,}/gi) || [];
   const freq = {};
 
   for (const w of rawWords) {
     const clean = w.toLowerCase().replace(/^[^\w#+]+|[^\w#+]+$/g, '');
-    if (clean.length >= 2 && !STOP_WORDS.has(clean) && isNaN(clean)) {
+    if (
+      clean.length >= 2 &&
+      !EXPANDED_STOP_WORDS.has(clean) &&
+      isNaN(clean) &&
+      !Array.from(checkedPhrases).some(p => p.includes(clean))
+    ) {
       freq[clean] = (freq[clean] || 0) + 1;
     }
   }
@@ -64,33 +121,64 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, initialSc
   // Sort by frequency
   const sortedKeywords = Object.keys(freq).sort((a, b) => freq[b] - freq[a]);
 
-  const missingKeywords = [];
-  const matchedKeywords = [];
-
   for (const kw of sortedKeywords) {
     const escaped = kw.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     const regex = new RegExp(`\\b${escaped}\\b`, 'i');
     const isPresent = regex.test(resumeLower);
 
-    const formattedKw = kw.length <= 4 && ['api', 'sql', 'aws', 'gcp', 'ui', 'ux', 'ci', 'cd', 'ml', 'ai', 'rest', 'nlp'].includes(kw)
-      ? kw.toUpperCase()
-      : kw.charAt(0).toUpperCase() + kw.slice(1);
+    const formattedKw =
+      ['api', 'sql', 'aws', 'gcp', 'ui', 'ux', 'ci', 'cd', 'ml', 'ai', 'rest', 'nlp', 'git'].includes(kw)
+        ? kw.toUpperCase()
+        : kw.charAt(0).toUpperCase() + kw.slice(1);
 
     if (isPresent) {
-      if (!matchedKeywords.includes(formattedKw) && matchedKeywords.length < 12) {
-        matchedKeywords.push(formattedKw);
+      if (!matched.includes(formattedKw) && matched.length < 12) {
+        matched.push(formattedKw);
       }
     } else {
-      if (!missingKeywords.includes(formattedKw) && missingKeywords.length < 12) {
-        missingKeywords.push(formattedKw);
+      if (!missing.includes(formattedKw) && missing.length < 10) {
+        missing.push(formattedKw);
       }
     }
   }
 
-  // Calibrate match score so reasonable resumes score reasonably (60-75% instead of 20%)
+  return { missingKeywords: missing, matchedKeywords: matched };
+}
+
+export function calibrateMatchScore(rawScore, matchedCount, missingCount) {
+  const total = matchedCount + missingCount;
+  if (total === 0) return Math.min(Math.max(rawScore, 10), 98);
+
+  const skillCoverage = (matchedCount / total) * 100;
+
+  // In ATS grading:
+  // If candidate has 70%+ of actual tech skills, score is 75-90%+
+  // If candidate has 50% of tech skills, score is 65-75%
+  // If candidate has 20-30% of tech skills, score is 40-55%
+  // If candidate has < 15% of tech skills, score is < 30%
+  let calibrated = 0;
+  if (skillCoverage >= 80) {
+    calibrated = 82 + (skillCoverage - 80) * 0.8; // 82 - 98%
+  } else if (skillCoverage >= 50) {
+    calibrated = 65 + (skillCoverage - 50) * 0.55; // 65 - 81.5%
+  } else if (skillCoverage >= 25) {
+    calibrated = 40 + (skillCoverage - 25) * 1.0; // 40 - 65%
+  } else {
+    calibrated = Math.max(12, skillCoverage * 1.6); // 12 - 40%
+  }
+
+  // Factor in raw cosine as subtle contextual nuance (15% weight)
+  const finalScore = (0.85 * calibrated) + (0.15 * Math.min(100, (rawScore / 30) * 75));
+  return Math.round(Math.min(Math.max(finalScore, 10), 98) * 10) / 10;
+}
+
+export function analyzeGapsAndImprovements(resumeText, jobDescription, initialScore) {
+  const { missingKeywords, matchedKeywords } = extractSkillsAndKeywords(jobDescription, resumeText);
+
+  // Calibrate match score so reasonable resumes with strong tools (Python, SQL, Pandas, NumPy, Scikit-learn) score appropriately (e.g. 80%+)
   const calibratedScore = calibrateMatchScore(initialScore, matchedKeywords.length, missingKeywords.length);
 
-  // 2. Lacking Areas based on score & missing keywords
+  // Lacking Areas based on score & missing keywords
   const lackingAreas = [];
   const topMissing = missingKeywords.slice(0, 4).join(', ');
 
@@ -111,16 +199,11 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, initialSc
       title: '📉 Lack of Targeted Experience & Tech Stack Bullet Points',
       description: `Your work experience descriptions do not demonstrate hands-on application of the tools, frameworks, and workflows required in this job's daily responsibilities.`
     });
-
-    lackingAreas.push({
-      title: '📊 Unquantified Achievements & Impact Metrics',
-      description: `Your bullet points are mostly passive responsibility statements rather than measurable accomplishments (e.g. % performance increase, latency reduction, revenue impact).`
-    });
   } else if (calibratedScore < 75) {
     lackingAreas.push({
-      title: '⚠️ Secondary Frameworks & Tooling Gap',
+      title: '⚠️ Secondary Frameworks & Methodology Gap',
       description: topMissing
-        ? `While you have solid foundation, you are missing several key secondary tools and methodologies mentioned in the job description: ${topMissing}.`
+        ? `While your core tech stack is strong, you can optimize your score by explicitly incorporating: ${topMissing}.`
         : `Secondary toolsets and frameworks in the job posting are not clearly highlighted in your project bullets.`
     });
 
@@ -130,26 +213,31 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, initialSc
     });
 
     lackingAreas.push({
-      title: '📐 Bullet Point Depth & Specificity',
-      description: `Some project bullets lack technical depth regarding architecture, scale, and specific problem-solving techniques relevant to this role.`
+      title: '📊 Measurable Accomplishments & Scale',
+      description: `Add more quantifiable metrics (e.g. model accuracy %, latency reduced, datasets processed) to prove real-world production impact.`
     });
   } else {
     lackingAreas.push({
-      title: '💡 Minor Keyword Optimization Opportunities',
-      description: topMissing
-        ? `Your background strongly matches the position. Consider naturally including: ${topMissing} to reach near-perfect alignment.`
-        : `Minor terminology adjustments will ensure 100% coverage of all listed requirements.`
+      title: '🌟 High Technical Skill Alignment',
+      description: `Your resume strongly demonstrates the primary technologies and tools required for this role.`
     });
+
+    if (topMissing) {
+      lackingAreas.push({
+        title: '💡 Minor Polish Opportunities',
+        description: `To reach peak 95%+ ATS optimization, consider naturally including mentions of: ${topMissing}.`
+      });
+    }
   }
 
-  // 3. Step-by-Step Improvement Blueprint
+  // Improvement Suggestions
   const improvementSuggestions = [];
 
   if (missingKeywords.length > 0) {
-    const sampleKeys = missingKeywords.slice(0, 5).join(', ');
+    const sampleKeys = missingKeywords.slice(0, 4).join(', ');
     improvementSuggestions.push({
-      category: '1. Inject Missing Keywords into Experience',
-      action: `Integrate the absent target keywords (${sampleKeys}) directly into your Work Experience and Featured Projects sections with contextual usage.`,
+      category: '1. Inject Missing Methodologies into Bullets',
+      action: `Incorporate absent terms (${sampleKeys}) naturally into your Work Experience and Featured Projects sections with contextual usage.`,
       impact: 'High Impact (ATS Ranking)'
     });
   } else {
@@ -162,27 +250,21 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, initialSc
 
   improvementSuggestions.push({
     category: '2. Apply the Google XYZ Bullet Formula',
-    action: `Rewrite your bullet points following: "Accomplished [X], as measured by [Y], by doing [Z]". For example: "Reduced API response latency by 35% by implementing Redis caching and database indexing in Node.js".`,
+    action: `Rewrite your bullet points following: "Accomplished [X], as measured by [Y], by doing [Z]". For example: "Trained XGBoost models achieving 94% precision on 2M+ records, reducing churn by 18%".`,
     impact: 'High Impact (Recruiter Appeal)'
   });
 
   improvementSuggestions.push({
     category: '3. Restructure Technical Skills Section',
-    action: `Group your skills into clear categories that mirror the job posting: Languages, Frameworks, Databases, Cloud & DevOps, and Developer Tools. Place the most relevant skills first.`,
+    action: `Group your skills into clear categories that mirror the job posting: Languages, Libraries/Frameworks, Databases, and Tools. Place the most relevant skills first.`,
     impact: 'Medium Impact (Readability)'
   });
 
-  improvementSuggestions.push({
-    category: '4. Tailor Summary to the Target Job Title',
-    action: `Update your 3-line professional summary at the very top of your resume to include the exact job title and your years of experience in the core required technologies.`,
-    impact: 'Medium Impact (First Impression)'
-  });
-
-  if (calibratedScore < 60) {
+  if (calibratedScore < 70) {
     improvementSuggestions.push({
-      category: '5. Add a Relevant Project Demonstrating Required Stack',
-      action: `Include 1-2 practical projects or case studies in your resume that explicitly showcase the missing technologies and frameworks required by this role.`,
-      impact: 'High Impact (Skill Proof)'
+      category: '4. Tailor Summary to the Target Job Title',
+      action: `Update your 3-line professional summary at the very top of your resume to include the exact job title and your years of experience in the core required technologies.`,
+      impact: 'Medium Impact (First Impression)'
     });
   }
 
