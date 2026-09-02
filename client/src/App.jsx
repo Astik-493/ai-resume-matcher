@@ -235,8 +235,15 @@ function App() {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
   }
 
-  // Score calculation & visual attributes
-  const score = result?.match_score ?? 0
+  // Robust analysis derivation: merge backend data with client-side calibrated NLP engine
+  const fallbackAnalysis = analyzeGapsAndImprovements(
+    result?.resume_snippet || '',
+    jobDescription,
+    result?.match_score ?? 0
+  )
+
+  // Use realistic calibrated score
+  const score = fallbackAnalysis.calibrated_score ?? result?.match_score ?? 0
   const radius = 78
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference - (Math.min(Math.max(score, 0), 100) / 100) * circumference
@@ -279,13 +286,6 @@ function App() {
   }
 
   const badgeInfo = getScoreBadge(score)
-
-  // Robust analysis derivation: merge backend data with client-side NLP engine
-  const fallbackAnalysis = analyzeGapsAndImprovements(
-    result?.resume_snippet || '',
-    jobDescription,
-    score
-  )
 
   const missingKeywords = (result?.missing_keywords && result.missing_keywords.length > 0)
     ? result.missing_keywords

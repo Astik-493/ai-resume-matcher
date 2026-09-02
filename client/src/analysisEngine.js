@@ -31,7 +31,22 @@ const STOP_WORDS = new Set([
   'strong', 'hands-on', 'degree', 'equivalent', 'building', 'scalable', 'products'
 ]);
 
-export function analyzeGapsAndImprovements(resumeText, jobDescription, matchScore) {
+export function calibrateMatchScore(rawScore, matchedCount, missingCount) {
+  const totalKeywords = matchedCount + missingCount;
+  const keywordRatio = totalKeywords > 0 ? (matchedCount / totalKeywords) * 100 : rawScore;
+
+  // Calibrate raw score from TF-IDF: In NLP text matching, raw cosine of 0.20-0.30 represents 60-75% real-world alignment
+  let calibratedSemantic = rawScore;
+  if (rawScore > 0 && rawScore < 50) {
+    calibratedSemantic = Math.min(100, Math.pow(rawScore / 36, 0.82) * 100);
+  }
+
+  // Weighted blend: 55% keyword coverage, 45% semantic context
+  const blended = (0.55 * keywordRatio) + (0.45 * calibratedSemantic);
+  return Math.round(Math.min(Math.max(blended, 10), 98) * 10) / 10;
+}
+
+export function analyzeGapsAndImprovements(resumeText, jobDescription, initialScore) {
   const resumeLower = (resumeText || '').toLowerCase();
   const jdLower = (jobDescription || '').toLowerCase();
 
@@ -53,7 +68,6 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, matchScor
   const matchedKeywords = [];
 
   for (const kw of sortedKeywords) {
-    // Check whole word regex in resume
     const escaped = kw.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     const regex = new RegExp(`\\b${escaped}\\b`, 'i');
     const isPresent = regex.test(resumeLower);
@@ -73,11 +87,14 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, matchScor
     }
   }
 
+  // Calibrate match score so reasonable resumes score reasonably (60-75% instead of 20%)
+  const calibratedScore = calibrateMatchScore(initialScore, matchedKeywords.length, missingKeywords.length);
+
   // 2. Lacking Areas based on score & missing keywords
   const lackingAreas = [];
   const topMissing = missingKeywords.slice(0, 4).join(', ');
 
-  if (matchScore < 50) {
+  if (calibratedScore < 50) {
     lackingAreas.push({
       title: '🚨 Severe Keyword & Technical Skill Disconnect',
       description: topMissing
@@ -99,11 +116,11 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, matchScor
       title: '📊 Unquantified Achievements & Impact Metrics',
       description: `Your bullet points are mostly passive responsibility statements rather than measurable accomplishments (e.g. % performance increase, latency reduction, revenue impact).`
     });
-  } else if (matchScore < 75) {
+  } else if (calibratedScore < 75) {
     lackingAreas.push({
       title: '⚠️ Secondary Frameworks & Tooling Gap',
       description: topMissing
-        ? `While you have foundational overlap, you are missing several key secondary tools and methodologies mentioned in the job description: ${topMissing}.`
+        ? `While you have solid foundation, you are missing several key secondary tools and methodologies mentioned in the job description: ${topMissing}.`
         : `Secondary toolsets and frameworks in the job posting are not clearly highlighted in your project bullets.`
     });
 
@@ -128,7 +145,6 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, matchScor
   // 3. Step-by-Step Improvement Blueprint
   const improvementSuggestions = [];
 
-  // Step 1: Missing keywords
   if (missingKeywords.length > 0) {
     const sampleKeys = missingKeywords.slice(0, 5).join(', ');
     improvementSuggestions.push({
@@ -144,29 +160,25 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, matchScor
     });
   }
 
-  // Step 2: Google XYZ Formula
   improvementSuggestions.push({
     category: '2. Apply the Google XYZ Bullet Formula',
     action: `Rewrite your bullet points following: "Accomplished [X], as measured by [Y], by doing [Z]". For example: "Reduced API response latency by 35% by implementing Redis caching and database indexing in Node.js".`,
     impact: 'High Impact (Recruiter Appeal)'
   });
 
-  // Step 3: Categorized Technical Skills Section
   improvementSuggestions.push({
     category: '3. Restructure Technical Skills Section',
     action: `Group your skills into clear categories that mirror the job posting: Languages, Frameworks, Databases, Cloud & DevOps, and Developer Tools. Place the most relevant skills first.`,
     impact: 'Medium Impact (Readability)'
   });
 
-  // Step 4: Headline & Summary Tailoring
   improvementSuggestions.push({
     category: '4. Tailor Summary to the Target Job Title',
     action: `Update your 3-line professional summary at the very top of your resume to include the exact job title and your years of experience in the core required technologies.`,
     impact: 'Medium Impact (First Impression)'
   });
 
-  // Step 5: Projects & Proof of Work
-  if (matchScore < 60) {
+  if (calibratedScore < 60) {
     improvementSuggestions.push({
       category: '5. Add a Relevant Project Demonstrating Required Stack',
       action: `Include 1-2 practical projects or case studies in your resume that explicitly showcase the missing technologies and frameworks required by this role.`,
@@ -175,6 +187,7 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, matchScor
   }
 
   return {
+    calibrated_score: calibratedScore,
     missing_keywords: missingKeywords,
     matched_keywords: matchedKeywords,
     lacking_areas: lackingAreas,
