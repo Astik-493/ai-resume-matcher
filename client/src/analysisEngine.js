@@ -1,80 +1,203 @@
 // Comprehensive client-side NLP and gap analysis engine
-// Accurate Skill & Domain Keyword Extraction (Filters out conversational verbs and noise)
+// Industry-Standard Canonical Skills & Competency Extractor (100% Noise-Free)
 
-const EXPANDED_STOP_WORDS = new Set([
-  'and', 'the', 'to', 'a', 'of', 'in', 'for', 'is', 'on', 'that', 'by', 'this',
-  'with', 'i', 'you', 'it', 'not', 'or', 'be', 'are', 'from', 'at', 'as', 'your',
-  'all', 'have', 'new', 'more', 'an', 'was', 'we', 'will', 'home', 'can', 'us',
-  'about', 'if', 'page', 'my', 'has', 'search', 'free', 'but', 'our', 'one',
-  'other', 'do', 'no', 'information', 'time', 'they', 'site', 'he', 'up', 'may',
-  'what', 'which', 'their', 'news', 'out', 'use', 'any', 'there', 'see', 'only',
-  'so', 'his', 'when', 'contact', 'here', 'business', 'who', 'web', 'also', 'now',
-  'help', 'get', 'view', 'online', 'first', 'been', 'would', 'how', 'were', 'me',
-  'services', 'some', 'these', 'click', 'its', 'like', 'service', 'than', 'find',
-  'date', 'back', 'top', 'people', 'had', 'list', 'name', 'just', 'over', 'state',
-  'year', 'day', 'into', 'email', 'two', 'world', 'next', 'used', 'work', 'last',
-  'most', 'make', 'them', 'should', 'system', 'post', 'such', 'please', 'available',
-  'message', 'after', 'best', 'software', 'well', 'where', 'years', 'company',
-  'group', 'need', 'many', 'user', 'said', 'does', 'set', 'under', 'general',
-  'part', 'could', 'great', 'must', 'report', 'off', 'details', 'line', 'terms',
-  'before', 'did', 'send', 'right', 'type', 'because', 'those', 'using', 'results',
-  'take', 'within', 'want', 'between', 'code', 'show', 'even', 'check', 'same',
-  'section', 'found', 'both', 'total', 'place', 'end', 'following', 'without',
-  'per', 'current', 'posts', 'guide', 'location', 'change', 'text', 'level',
-  'profile', 'previous', 'form', 'main', 'another', 'why', 'tools', 'low',
-  'value', 'jobs', 'provide', 'learn', 'around', 'course', 'job', 'process',
-  'point', 'join', 'look', 'team', 'note', 'really', 'action', 'start',
-  'plan', 'required', 'better', 'say', 'questions', 'test', 'again', 'issues',
-  'users', 'complete', 'working', 'candidate', 'candidates', 'opportunity',
-  'responsibilities', 'qualifications', 'duties', 'role', 'position',
-  'requirement', 'requirements', 'skills', 'experience', 'preferred', 'plus',
-  'strong', 'hands-on', 'degree', 'equivalent', 'building', 'scalable', 'products',
-  // Common action verbs & non-skill descriptive words
-  'perform', 'performing', 'build', 'large', 'key', 'across', 'various', 'deliver',
-  'delivering', 'assist', 'assisting', 'closely', 'drive', 'driving', 'demonstrated',
-  'deep', 'solid', 'proven', 'lead', 'leading', 'scale', 'scaling', 'real', 'solve',
-  'solving', 'apply', 'applying', 'collaborate', 'collaborating', 'support',
-  'supporting', 'ensure', 'ensuring', 'write', 'writing', 'create', 'creating',
-  'maintain', 'maintaining', 'taking', 'making', 'member', 'related', 'science',
-  'field', 'ability', 'proficient', 'proficiency', 'knowledge', 'understanding',
-  'familiarity', 'background', 'bachelor', 'master', 'phd', 'bootcamp', 'degree',
-  'stem', 'high', 'good', 'excellent', 'fast-paced', 'environment', 'solutions',
-  'impactful', 'complex', 'modern', 'standards', 'practices', 'technologies',
-  'daily', 'active', 'functional', 'technical', 'deliverables', 'methods', 'things'
-]);
+// Curated canonical taxonomy of genuine technical & domain skills
+const CANONICAL_SKILLS_TAXONOMY = [
+  // Programming Languages
+  'python', 'javascript', 'typescript', 'java', 'c++', 'c#', 'golang', 'go', 'rust',
+  'ruby', 'php', 'swift', 'kotlin', 'sql', 'r', 'html5', 'css3', 'bash', 'shell', 'scala',
 
-// High-value technical concepts and compound phrases
-const COMPOUND_PHRASES = [
-  'a/b testing',
-  'statistical modeling',
-  'exploratory data analysis',
-  'hypothesis testing',
-  'predictive modeling',
-  'data visualization',
-  'machine learning',
-  'deep learning',
-  'natural language processing',
-  'computer vision',
-  'vector search',
-  'rag pipelines',
-  'restful apis',
-  'rest apis',
-  'graphql apis',
-  'microservices',
-  'ci/cd pipelines',
-  'ci/cd',
-  'design systems',
-  'cloud infrastructure',
-  'unit testing',
-  'integration testing',
-  'agile/scrum',
-  'data warehousing',
-  'feature engineering',
-  'model evaluation',
-  'distributed systems',
-  'performance tuning',
-  'database indexing'
+  // Data Science, ML & AI
+  'pandas', 'numpy', 'scikit-learn', 'pytorch', 'tensorflow', 'keras', 'xgboost',
+  'lightgbm', 'hugging face', 'langchain', 'llamaindex', 'openai', 'nlp', 'deep learning',
+  'machine learning', 'computer vision', 'vector search', 'rag pipelines', 'pinecone',
+  'chroma', 'milvus', 'statistics', 'statistical modeling', 'exploratory data analysis',
+  'hypothesis testing', 'predictive modeling', 'data visualization', 'a/b testing',
+  'feature engineering', 'model evaluation', 'time series', 'data warehousing',
+  'etl pipelines', 'tableau', 'power bi', 'looker', 'excel', 'spark', 'pyspark',
+
+  // Frontend & UI
+  'react', 'react.js', 'next.js', 'vue', 'vue.js', 'angular', 'redux', 'zustand',
+  'tailwind css', 'tailwind', 'bootstrap', 'sass', 'webpack', 'vite', 'jest',
+  'cypress', 'playwright', 'ui/ux', 'figma', 'storybook', 'design systems',
+  'web performance', 'responsive design', 'accessibility', 'wcag',
+
+  // Backend & APIs
+  'node.js', 'express', 'express.js', 'fastapi', 'django', 'flask', 'spring boot',
+  'nestjs', 'graphql', 'graphql apis', 'rest apis', 'restful apis', 'grpc',
+  'microservices', 'oauth', 'oauth2', 'jwt', 'websockets', 'kafka', 'rabbitmq',
+  'celery', 'database indexing', 'performance tuning',
+
+  // Databases & Warehouses
+  'postgresql', 'mongodb', 'mysql', 'redis', 'elasticsearch', 'cassandra',
+  'dynamodb', 'supabase', 'firebase', 'bigquery', 'snowflake', 'redshift', 'sqlite',
+
+  // Cloud & DevOps
+  'aws', 'amazon web services', 'gcp', 'google cloud', 'azure', 'docker',
+  'kubernetes', 'terraform', 'ci/cd', 'ci/cd pipelines', 'github actions',
+  'gitlab ci', 'jenkins', 'linux', 'prometheus', 'grafana', 'helm', 'ansible',
+  'cloud infrastructure', 'serverless', 'nginx',
+
+  // Engineering Methodologies & Testing
+  'agile/scrum', 'agile', 'scrum', 'jira', 'unit testing', 'integration testing',
+  'tdd', 'automated testing', 'system architecture', 'distributed systems', 'git'
 ];
+
+// Display name mapping for proper capitalizations
+const SKILL_DISPLAY_NAMES = {
+  'python': 'Python',
+  'javascript': 'JavaScript',
+  'typescript': 'TypeScript',
+  'java': 'Java',
+  'c++': 'C++',
+  'c#': 'C#',
+  'golang': 'Go',
+  'go': 'Go',
+  'rust': 'Rust',
+  'ruby': 'Ruby',
+  'php': 'PHP',
+  'swift': 'Swift',
+  'kotlin': 'Kotlin',
+  'sql': 'SQL',
+  'r': 'R',
+  'html5': 'HTML5',
+  'css3': 'CSS3',
+  'bash': 'Bash',
+  'shell': 'Shell',
+  'scala': 'Scala',
+  'pandas': 'Pandas',
+  'numpy': 'NumPy',
+  'scikit-learn': 'Scikit-learn',
+  'pytorch': 'PyTorch',
+  'tensorflow': 'TensorFlow',
+  'keras': 'Keras',
+  'xgboost': 'XGBoost',
+  'lightgbm': 'LightGBM',
+  'hugging face': 'Hugging Face',
+  'langchain': 'LangChain',
+  'llamaindex': 'LlamaIndex',
+  'openai': 'OpenAI',
+  'nlp': 'NLP (Natural Language Processing)',
+  'deep learning': 'Deep Learning',
+  'machine learning': 'Machine Learning',
+  'computer vision': 'Computer Vision',
+  'vector search': 'Vector Search',
+  'rag pipelines': 'RAG Pipelines',
+  'pinecone': 'Pinecone',
+  'chroma': 'Chroma',
+  'milvus': 'Milvus',
+  'statistics': 'Statistics',
+  'statistical modeling': 'Statistical Modeling',
+  'exploratory data analysis': 'Exploratory Data Analysis (EDA)',
+  'hypothesis testing': 'Hypothesis Testing',
+  'predictive modeling': 'Predictive Modeling',
+  'data visualization': 'Data Visualization',
+  'a/b testing': 'A/B Testing',
+  'feature engineering': 'Feature Engineering',
+  'model evaluation': 'Model Evaluation',
+  'time series': 'Time Series Analysis',
+  'data warehousing': 'Data Warehousing',
+  'etl pipelines': 'ETL Pipelines',
+  'tableau': 'Tableau',
+  'power bi': 'Power BI',
+  'looker': 'Looker',
+  'excel': 'Excel',
+  'spark': 'Apache Spark',
+  'pyspark': 'PySpark',
+  'react': 'React',
+  'react.js': 'React.js',
+  'next.js': 'Next.js',
+  'vue': 'Vue.js',
+  'vue.js': 'Vue.js',
+  'angular': 'Angular',
+  'redux': 'Redux',
+  'zustand': 'Zustand',
+  'tailwind css': 'Tailwind CSS',
+  'tailwind': 'Tailwind CSS',
+  'bootstrap': 'Bootstrap',
+  'sass': 'Sass',
+  'webpack': 'Webpack',
+  'vite': 'Vite',
+  'jest': 'Jest',
+  'cypress': 'Cypress',
+  'playwright': 'Playwright',
+  'ui/ux': 'UI/UX Design',
+  'figma': 'Figma',
+  'storybook': 'Storybook',
+  'design systems': 'Design Systems',
+  'web performance': 'Web Performance',
+  'responsive design': 'Responsive Design',
+  'accessibility': 'Web Accessibility (WCAG)',
+  'wcag': 'WCAG Accessibility',
+  'node.js': 'Node.js',
+  'express': 'Express.js',
+  'express.js': 'Express.js',
+  'fastapi': 'FastAPI',
+  'django': 'Django',
+  'flask': 'Flask',
+  'spring boot': 'Spring Boot',
+  'nestjs': 'NestJS',
+  'graphql': 'GraphQL',
+  'graphql apis': 'GraphQL APIs',
+  'rest apis': 'REST APIs',
+  'restful apis': 'RESTful APIs',
+  'grpc': 'gRPC',
+  'microservices': 'Microservices',
+  'oauth': 'OAuth 2.0',
+  'oauth2': 'OAuth 2.0',
+  'jwt': 'JWT Authentication',
+  'websockets': 'WebSockets',
+  'kafka': 'Apache Kafka',
+  'rabbitmq': 'RabbitMQ',
+  'celery': 'Celery',
+  'database indexing': 'Database Indexing',
+  'performance tuning': 'Performance Tuning',
+  'postgresql': 'PostgreSQL',
+  'mongodb': 'MongoDB',
+  'mysql': 'MySQL',
+  'redis': 'Redis',
+  'elasticsearch': 'Elasticsearch',
+  'cassandra': 'Cassandra',
+  'dynamodb': 'DynamoDB',
+  'supabase': 'Supabase',
+  'firebase': 'Firebase',
+  'bigquery': 'Google BigQuery',
+  'snowflake': 'Snowflake',
+  'redshift': 'Amazon Redshift',
+  'sqlite': 'SQLite',
+  'aws': 'AWS Cloud',
+  'amazon web services': 'AWS Cloud',
+  'gcp': 'Google Cloud (GCP)',
+  'google cloud': 'Google Cloud (GCP)',
+  'azure': 'Microsoft Azure',
+  'docker': 'Docker',
+  'kubernetes': 'Kubernetes',
+  'terraform': 'Terraform (IaC)',
+  'ci/cd': 'CI/CD Automation',
+  'ci/cd pipelines': 'CI/CD Pipelines',
+  'github actions': 'GitHub Actions',
+  'gitlab ci': 'GitLab CI',
+  'jenkins': 'Jenkins',
+  'linux': 'Linux',
+  'prometheus': 'Prometheus',
+  'grafana': 'Grafana',
+  'helm': 'Helm',
+  'ansible': 'Ansible',
+  'cloud infrastructure': 'Cloud Infrastructure',
+  'serverless': 'Serverless Architecture',
+  'nginx': 'Nginx',
+  'agile/scrum': 'Agile / Scrum',
+  'agile': 'Agile Methodology',
+  'scrum': 'Scrum Framework',
+  'jira': 'Jira',
+  'unit testing': 'Unit Testing',
+  'integration testing': 'Integration Testing',
+  'tdd': 'Test-Driven Development (TDD)',
+  'automated testing': 'Automated Testing',
+  'system architecture': 'System Architecture',
+  'distributed systems': 'Distributed Systems',
+  'git': 'Git Version Control'
+};
 
 export function extractSkillsAndKeywords(jobDescription, resumeText) {
   const jdLower = (jobDescription || '').toLowerCase();
@@ -82,62 +205,49 @@ export function extractSkillsAndKeywords(jobDescription, resumeText) {
 
   const missing = [];
   const matched = [];
-  const checkedPhrases = new Set();
+  const matchedCanonicalKeys = new Set();
 
-  // 1. Check for compound phrases in the JD
-  for (const phrase of COMPOUND_PHRASES) {
-    if (jdLower.includes(phrase)) {
-      checkedPhrases.add(phrase);
-      const isMatched = resumeLower.includes(phrase);
-      const formatted = phrase
-        .split(' ')
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
+  // Sort canonical skills by length descending so longer phrases match before substrings
+  const sortedCanonical = [...CANONICAL_SKILLS_TAXONOMY].sort((a, b) => b.length - a.length);
 
-      if (isMatched) {
-        if (!matched.includes(formatted)) matched.push(formatted);
+  for (const skill of sortedCanonical) {
+    // Check if the skill is mentioned in the Job Description
+    // Word boundary check or exact phrase match
+    const regex = new RegExp(`(^|[^a-zA-Z0-9#+.-])${skill.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}([^a-zA-Z0-9#+.-]|$)`, 'i');
+    
+    if (regex.test(jdLower)) {
+      // Avoid duplicate sub-phrases (e.g. if 'graphql apis' matched, don't also add 'graphql')
+      if (Array.from(matchedCanonicalKeys).some(k => k.includes(skill) && k !== skill)) {
+        continue;
+      }
+
+      matchedCanonicalKeys.add(skill);
+
+      // Check if candidate's resume possesses this skill
+      const isPresentInResume = regex.test(resumeLower);
+      const displayName = SKILL_DISPLAY_NAMES[skill] || skill.charAt(0).toUpperCase() + skill.slice(1);
+
+      if (isPresentInResume) {
+        if (!matched.includes(displayName)) matched.push(displayName);
       } else {
-        if (!missing.includes(formatted)) missing.push(formatted);
+        if (!missing.includes(displayName)) missing.push(displayName);
       }
     }
   }
 
-  // 2. Extract clean single tokens from JD
-  const rawWords = jdLower.match(/[a-z0-9#+.-]{2,}/gi) || [];
-  const freq = {};
-
-  for (const w of rawWords) {
-    const clean = w.toLowerCase().replace(/^[^\w#+]+|[^\w#+]+$/g, '');
-    if (
-      clean.length >= 2 &&
-      !EXPANDED_STOP_WORDS.has(clean) &&
-      isNaN(clean) &&
-      !Array.from(checkedPhrases).some(p => p.includes(clean))
-    ) {
-      freq[clean] = (freq[clean] || 0) + 1;
-    }
-  }
-
-  // Sort by frequency
-  const sortedKeywords = Object.keys(freq).sort((a, b) => freq[b] - freq[a]);
-
-  for (const kw of sortedKeywords) {
-    const escaped = kw.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-    const isPresent = regex.test(resumeLower);
-
-    const formattedKw =
-      ['api', 'sql', 'aws', 'gcp', 'ui', 'ux', 'ci', 'cd', 'ml', 'ai', 'rest', 'nlp', 'git'].includes(kw)
-        ? kw.toUpperCase()
-        : kw.charAt(0).toUpperCase() + kw.slice(1);
-
-    if (isPresent) {
-      if (!matched.includes(formattedKw) && matched.length < 12) {
-        matched.push(formattedKw);
-      }
-    } else {
-      if (!missing.includes(formattedKw) && missing.length < 10) {
-        missing.push(formattedKw);
+  // Fallback: If no canonical skills matched in JD (e.g. non-tech prompt), extract key clean words
+  if (matched.length === 0 && missing.length === 0) {
+    const rawTokens = jdLower.match(/[a-zA-Z0-9#+.-]{3,}/g) || [];
+    const stopWords = new Set(['and', 'the', 'for', 'with', 'that', 'this', 'from', 'have', 'your', 'will', 'role', 'work', 'team']);
+    for (const token of rawTokens) {
+      if (!stopWords.has(token) && isNaN(token)) {
+        const isPresent = resumeLower.includes(token);
+        const name = token.charAt(0).toUpperCase() + token.slice(1);
+        if (isPresent) {
+          if (!matched.includes(name) && matched.length < 8) matched.push(name);
+        } else {
+          if (!missing.includes(name) && missing.length < 6) missing.push(name);
+        }
       }
     }
   }
@@ -151,75 +261,61 @@ export function calibrateMatchScore(rawScore, matchedCount, missingCount) {
 
   const skillCoverage = (matchedCount / total) * 100;
 
-  // In ATS grading:
-  // If candidate has 70%+ of actual tech skills, score is 75-90%+
-  // If candidate has 50% of tech skills, score is 65-75%
-  // If candidate has 20-30% of tech skills, score is 40-55%
-  // If candidate has < 15% of tech skills, score is < 30%
+  // Realistic ATS Scoring based on genuine skills:
+  // - 80%+ skills matched (e.g. Python, SQL, Pandas, NumPy, Scikit-learn): Score 85 - 98%
+  // - 50-79% skills matched: Score 68 - 84%
+  // - 25-49% skills matched: Score 45 - 67%
+  // - <25% skills matched: Score 15 - 44%
   let calibrated = 0;
   if (skillCoverage >= 80) {
-    calibrated = 82 + (skillCoverage - 80) * 0.8; // 82 - 98%
+    calibrated = 85 + (skillCoverage - 80) * 0.65; // 85 - 98%
   } else if (skillCoverage >= 50) {
-    calibrated = 65 + (skillCoverage - 50) * 0.55; // 65 - 81.5%
+    calibrated = 68 + (skillCoverage - 50) * 0.55; // 68 - 84.5%
   } else if (skillCoverage >= 25) {
-    calibrated = 40 + (skillCoverage - 25) * 1.0; // 40 - 65%
+    calibrated = 45 + (skillCoverage - 25) * 0.9; // 45 - 67.5%
   } else {
-    calibrated = Math.max(12, skillCoverage * 1.6); // 12 - 40%
+    calibrated = Math.max(15, skillCoverage * 1.8); // 15 - 45%
   }
 
-  // Factor in raw cosine as subtle contextual nuance (15% weight)
-  const finalScore = (0.85 * calibrated) + (0.15 * Math.min(100, (rawScore / 30) * 75));
-  return Math.round(Math.min(Math.max(finalScore, 10), 98) * 10) / 10;
+  return Math.round(Math.min(Math.max(calibrated, 10), 98) * 10) / 10;
 }
 
 export function analyzeGapsAndImprovements(resumeText, jobDescription, initialScore) {
   const { missingKeywords, matchedKeywords } = extractSkillsAndKeywords(jobDescription, resumeText);
-
-  // Calibrate match score so reasonable resumes with strong tools (Python, SQL, Pandas, NumPy, Scikit-learn) score appropriately (e.g. 80%+)
   const calibratedScore = calibrateMatchScore(initialScore, matchedKeywords.length, missingKeywords.length);
 
-  // Lacking Areas based on score & missing keywords
+  // Lacking Areas based on genuine skills
   const lackingAreas = [];
   const topMissing = missingKeywords.slice(0, 4).join(', ');
 
   if (calibratedScore < 50) {
     lackingAreas.push({
-      title: '🚨 Severe Keyword & Technical Skill Disconnect',
+      title: '🚨 Major Technical Skill Disconnect',
       description: topMissing
-        ? `Your resume is missing fundamental keywords prioritized by the job posting, such as: ${topMissing}. ATS systems will filter your resume out before a recruiter sees it.`
+        ? `Your resume is missing fundamental core technologies required for this role: ${topMissing}. ATS parsers will likely filter out the application.`
         : `Your resume language has substantial divergence from the core technical keywords required in this job description.`
     });
 
     lackingAreas.push({
-      title: '⚠️ Role Title & Summary Mismatch',
-      description: `The professional summary or headline does not explicitly target the required position and fails to highlight the primary tech stack and domain expertise.`
-    });
-
-    lackingAreas.push({
-      title: '📉 Lack of Targeted Experience & Tech Stack Bullet Points',
-      description: `Your work experience descriptions do not demonstrate hands-on application of the tools, frameworks, and workflows required in this job's daily responsibilities.`
+      title: '⚠️ Role Title & Core Experience Mismatch',
+      description: `Your headline and experience bullet points do not explicitly align with the primary technologies demanded in the job posting.`
     });
   } else if (calibratedScore < 75) {
     lackingAreas.push({
-      title: '⚠️ Secondary Frameworks & Methodology Gap',
+      title: '⚠️ Secondary Methodologies & Tooling Gap',
       description: topMissing
-        ? `While your core tech stack is strong, you can optimize your score by explicitly incorporating: ${topMissing}.`
+        ? `You have strong foundational alignment! To boost your ATS ranking, consider incorporating: ${topMissing}.`
         : `Secondary toolsets and frameworks in the job posting are not clearly highlighted in your project bullets.`
     });
 
     lackingAreas.push({
-      title: '🔍 Keyword Density & Phrasing Alignment',
-      description: `Certain industry-standard terms and exact phrase matches in the job posting are phrased differently in your resume, reducing semantic similarity.`
-    });
-
-    lackingAreas.push({
       title: '📊 Measurable Accomplishments & Scale',
-      description: `Add more quantifiable metrics (e.g. model accuracy %, latency reduced, datasets processed) to prove real-world production impact.`
+      description: `Add more quantifiable metrics (e.g. % accuracy, scale, latency reduced, revenue impact) to prove real-world production impact.`
     });
   } else {
     lackingAreas.push({
-      title: '🌟 High Technical Skill Alignment',
-      description: `Your resume strongly demonstrates the primary technologies and tools required for this role.`
+      title: '🌟 Outstanding Technical Alignment',
+      description: `Your resume demonstrates exceptional coverage of the core programming languages, tools, and libraries required for this role.`
     });
 
     if (topMissing) {
@@ -234,7 +330,7 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, initialSc
   const improvementSuggestions = [];
 
   if (missingKeywords.length > 0) {
-    const sampleKeys = missingKeywords.slice(0, 4).join(', ');
+    const sampleKeys = missingKeywords.slice(0, 3).join(', ');
     improvementSuggestions.push({
       category: '1. Inject Missing Methodologies into Bullets',
       action: `Incorporate absent terms (${sampleKeys}) naturally into your Work Experience and Featured Projects sections with contextual usage.`,
@@ -250,7 +346,7 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, initialSc
 
   improvementSuggestions.push({
     category: '2. Apply the Google XYZ Bullet Formula',
-    action: `Rewrite your bullet points following: "Accomplished [X], as measured by [Y], by doing [Z]". For example: "Trained XGBoost models achieving 94% precision on 2M+ records, reducing churn by 18%".`,
+    action: `Rewrite accomplishments using: "Accomplished [X], as measured by [Y], by doing [Z]". For example: "Trained XGBoost models achieving 94% precision on 2M+ records, reducing churn by 18%".`,
     impact: 'High Impact (Recruiter Appeal)'
   });
 
@@ -259,14 +355,6 @@ export function analyzeGapsAndImprovements(resumeText, jobDescription, initialSc
     action: `Group your skills into clear categories that mirror the job posting: Languages, Libraries/Frameworks, Databases, and Tools. Place the most relevant skills first.`,
     impact: 'Medium Impact (Readability)'
   });
-
-  if (calibratedScore < 70) {
-    improvementSuggestions.push({
-      category: '4. Tailor Summary to the Target Job Title',
-      action: `Update your 3-line professional summary at the very top of your resume to include the exact job title and your years of experience in the core required technologies.`,
-      impact: 'Medium Impact (First Impression)'
-    });
-  }
 
   return {
     calibrated_score: calibratedScore,

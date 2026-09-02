@@ -8,154 +8,236 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
 
-EXPANDED_STOP_WORDS: Set[str] = {
-    'and', 'the', 'to', 'a', 'of', 'in', 'for', 'is', 'on', 'that', 'by', 'this',
-    'with', 'i', 'you', 'it', 'not', 'or', 'be', 'are', 'from', 'at', 'as', 'your',
-    'all', 'have', 'new', 'more', 'an', 'was', 'we', 'will', 'home', 'can', 'us',
-    'about', 'if', 'page', 'my', 'has', 'search', 'free', 'but', 'our', 'one',
-    'other', 'do', 'no', 'information', 'time', 'they', 'site', 'he', 'up', 'may',
-    'what', 'which', 'their', 'news', 'out', 'use', 'any', 'there', 'see', 'only',
-    'so', 'his', 'when', 'contact', 'here', 'business', 'who', 'web', 'also', 'now',
-    'help', 'get', 'view', 'online', 'first', 'been', 'would', 'how', 'were', 'me',
-    'services', 'some', 'these', 'click', 'its', 'like', 'service', 'than', 'find',
-    'date', 'back', 'top', 'people', 'had', 'list', 'name', 'just', 'over', 'state',
-    'year', 'day', 'into', 'email', 'two', 'world', 'next', 'used', 'work', 'last',
-    'most', 'make', 'them', 'should', 'system', 'post', 'such', 'please', 'available',
-    'message', 'after', 'best', 'software', 'well', 'where', 'years', 'company',
-    'group', 'need', 'many', 'user', 'said', 'does', 'set', 'under', 'general',
-    'part', 'could', 'great', 'must', 'report', 'off', 'details', 'line', 'terms',
-    'before', 'did', 'send', 'right', 'type', 'because', 'those', 'using', 'results',
-    'take', 'within', 'want', 'between', 'code', 'show', 'even', 'check', 'same',
-    'section', 'found', 'both', 'total', 'place', 'end', 'following', 'without',
-    'per', 'current', 'posts', 'guide', 'location', 'change', 'text', 'level',
-    'profile', 'previous', 'form', 'main', 'another', 'why', 'tools', 'low',
-    'value', 'jobs', 'provide', 'learn', 'around', 'course', 'job', 'process',
-    'point', 'join', 'look', 'team', 'note', 'really', 'action', 'start',
-    'plan', 'required', 'better', 'say', 'questions', 'test', 'again', 'issues',
-    'users', 'complete', 'working', 'candidate', 'candidates', 'opportunity',
-    'responsibilities', 'qualifications', 'duties', 'role', 'position',
-    'requirement', 'requirements', 'skills', 'experience', 'preferred', 'plus',
-    'strong', 'hands-on', 'degree', 'equivalent', 'building', 'scalable', 'products',
-    # Filter common verbs and filler words
-    'perform', 'performing', 'build', 'large', 'key', 'across', 'various', 'deliver',
-    'delivering', 'assist', 'assisting', 'closely', 'drive', 'driving', 'demonstrated',
-    'deep', 'solid', 'proven', 'lead', 'leading', 'scale', 'scaling', 'real', 'solve',
-    'solving', 'apply', 'applying', 'collaborate', 'collaborating', 'support',
-    'supporting', 'ensure', 'ensuring', 'write', 'writing', 'create', 'creating',
-    'maintain', 'maintaining', 'taking', 'making', 'member', 'related', 'science',
-    'field', 'ability', 'proficient', 'proficiency', 'knowledge', 'understanding',
-    'familiarity', 'background', 'bachelor', 'master', 'phd', 'bootcamp', 'degree',
-    'stem', 'high', 'good', 'excellent', 'fast-paced', 'environment', 'solutions',
-    'impactful', 'complex', 'modern', 'standards', 'practices', 'technologies',
-    'daily', 'active', 'functional', 'technical', 'deliverables', 'methods', 'things'
-}
+CANONICAL_SKILLS_TAXONOMY = [
+    # Languages
+    'python', 'javascript', 'typescript', 'java', 'c++', 'c#', 'golang', 'go', 'rust',
+    'ruby', 'php', 'swift', 'kotlin', 'sql', 'r', 'html5', 'css3', 'bash', 'shell', 'scala',
 
-COMPOUND_PHRASES = [
-    'a/b testing',
-    'statistical modeling',
-    'exploratory data analysis',
-    'hypothesis testing',
-    'predictive modeling',
-    'data visualization',
-    'machine learning',
-    'deep learning',
-    'natural language processing',
-    'computer vision',
-    'vector search',
-    'rag pipelines',
-    'restful apis',
-    'rest apis',
-    'graphql apis',
-    'microservices',
-    'ci/cd pipelines',
-    'ci/cd',
-    'design systems',
-    'cloud infrastructure',
-    'unit testing',
-    'integration testing',
-    'agile/scrum',
-    'data warehousing',
-    'feature engineering',
-    'model evaluation',
-    'distributed systems',
-    'performance tuning',
-    'database indexing'
+    # Data Science & AI
+    'pandas', 'numpy', 'scikit-learn', 'pytorch', 'tensorflow', 'keras', 'xgboost',
+    'lightgbm', 'hugging face', 'langchain', 'llamaindex', 'openai', 'nlp', 'deep learning',
+    'machine learning', 'computer vision', 'vector search', 'rag pipelines', 'pinecone',
+    'chroma', 'milvus', 'statistics', 'statistical modeling', 'exploratory data analysis',
+    'hypothesis testing', 'predictive modeling', 'data visualization', 'a/b testing',
+    'feature engineering', 'model evaluation', 'time series', 'data warehousing',
+    'etl pipelines', 'tableau', 'power bi', 'looker', 'excel', 'spark', 'pyspark',
+
+    # Frontend
+    'react', 'react.js', 'next.js', 'vue', 'vue.js', 'angular', 'redux', 'zustand',
+    'tailwind css', 'tailwind', 'bootstrap', 'sass', 'webpack', 'vite', 'jest',
+    'cypress', 'playwright', 'ui/ux', 'figma', 'storybook', 'design systems',
+    'web performance', 'responsive design', 'accessibility', 'wcag',
+
+    # Backend & APIs
+    'node.js', 'express', 'express.js', 'fastapi', 'django', 'flask', 'spring boot',
+    'nestjs', 'graphql', 'graphql apis', 'rest apis', 'restful apis', 'grpc',
+    'microservices', 'oauth', 'oauth2', 'jwt', 'websockets', 'kafka', 'rabbitmq',
+    'celery', 'database indexing', 'performance tuning',
+
+    # Databases
+    'postgresql', 'mongodb', 'mysql', 'redis', 'elasticsearch', 'cassandra',
+    'dynamodb', 'supabase', 'firebase', 'bigquery', 'snowflake', 'redshift', 'sqlite',
+
+    # Cloud & DevOps
+    'aws', 'amazon web services', 'gcp', 'google cloud', 'azure', 'docker',
+    'kubernetes', 'terraform', 'ci/cd', 'ci/cd pipelines', 'github actions',
+    'gitlab ci', 'jenkins', 'linux', 'prometheus', 'grafana', 'helm', 'ansible',
+    'cloud infrastructure', 'serverless', 'nginx',
+
+    # Methodologies
+    'agile/scrum', 'agile', 'scrum', 'jira', 'unit testing', 'integration testing',
+    'tdd', 'automated testing', 'system architecture', 'distributed systems', 'git'
 ]
 
+SKILL_DISPLAY_NAMES = {
+    'python': 'Python',
+    'javascript': 'JavaScript',
+    'typescript': 'TypeScript',
+    'java': 'Java',
+    'c++': 'C++',
+    'c#': 'C#',
+    'golang': 'Go',
+    'go': 'Go',
+    'rust': 'Rust',
+    'ruby': 'Ruby',
+    'php': 'PHP',
+    'swift': 'Swift',
+    'kotlin': 'Kotlin',
+    'sql': 'SQL',
+    'r': 'R',
+    'html5': 'HTML5',
+    'css3': 'CSS3',
+    'bash': 'Bash',
+    'shell': 'Shell',
+    'scala': 'Scala',
+    'pandas': 'Pandas',
+    'numpy': 'NumPy',
+    'scikit-learn': 'Scikit-learn',
+    'pytorch': 'PyTorch',
+    'tensorflow': 'TensorFlow',
+    'keras': 'Keras',
+    'xgboost': 'XGBoost',
+    'lightgbm': 'LightGBM',
+    'hugging face': 'Hugging Face',
+    'langchain': 'LangChain',
+    'llamaindex': 'LlamaIndex',
+    'openai': 'OpenAI',
+    'nlp': 'NLP (Natural Language Processing)',
+    'deep learning': 'Deep Learning',
+    'machine learning': 'Machine Learning',
+    'computer vision': 'Computer Vision',
+    'vector search': 'Vector Search',
+    'rag pipelines': 'RAG Pipelines',
+    'pinecone': 'Pinecone',
+    'chroma': 'Chroma',
+    'milvus': 'Milvus',
+    'statistics': 'Statistics',
+    'statistical modeling': 'Statistical Modeling',
+    'exploratory data analysis': 'Exploratory Data Analysis (EDA)',
+    'hypothesis testing': 'Hypothesis Testing',
+    'predictive modeling': 'Predictive Modeling',
+    'data visualization': 'Data Visualization',
+    'a/b testing': 'A/B Testing',
+    'feature engineering': 'Feature Engineering',
+    'model evaluation': 'Model Evaluation',
+    'time series': 'Time Series Analysis',
+    'data warehousing': 'Data Warehousing',
+    'etl pipelines': 'ETL Pipelines',
+    'tableau': 'Tableau',
+    'power bi': 'Power BI',
+    'looker': 'Looker',
+    'excel': 'Excel',
+    'spark': 'Apache Spark',
+    'pyspark': 'PySpark',
+    'react': 'React',
+    'react.js': 'React.js',
+    'next.js': 'Next.js',
+    'vue': 'Vue.js',
+    'vue.js': 'Vue.js',
+    'angular': 'Angular',
+    'redux': 'Redux',
+    'zustand': 'Zustand',
+    'tailwind css': 'Tailwind CSS',
+    'tailwind': 'Tailwind CSS',
+    'bootstrap': 'Bootstrap',
+    'sass': 'Sass',
+    'webpack': 'Webpack',
+    'vite': 'Vite',
+    'jest': 'Jest',
+    'cypress': 'Cypress',
+    'playwright': 'Playwright',
+    'ui/ux': 'UI/UX Design',
+    'figma': 'Figma',
+    'storybook': 'Storybook',
+    'design systems': 'Design Systems',
+    'web performance': 'Web Performance',
+    'responsive design': 'Responsive Design',
+    'accessibility': 'Web Accessibility (WCAG)',
+    'wcag': 'WCAG Accessibility',
+    'node.js': 'Node.js',
+    'express': 'Express.js',
+    'express.js': 'Express.js',
+    'fastapi': 'FastAPI',
+    'django': 'Django',
+    'flask': 'Flask',
+    'spring boot': 'Spring Boot',
+    'nestjs': 'NestJS',
+    'graphql': 'GraphQL',
+    'graphql apis': 'GraphQL APIs',
+    'rest apis': 'REST APIs',
+    'restful apis': 'RESTful APIs',
+    'grpc': 'gRPC',
+    'microservices': 'Microservices',
+    'oauth': 'OAuth 2.0',
+    'oauth2': 'OAuth 2.0',
+    'jwt': 'JWT Authentication',
+    'websockets': 'WebSockets',
+    'kafka': 'Apache Kafka',
+    'rabbitmq': 'RabbitMQ',
+    'celery': 'Celery',
+    'database indexing': 'Database Indexing',
+    'performance tuning': 'Performance Tuning',
+    'postgresql': 'PostgreSQL',
+    'mongodb': 'MongoDB',
+    'mysql': 'MySQL',
+    'redis': 'Redis',
+    'elasticsearch': 'Elasticsearch',
+    'cassandra': 'Cassandra',
+    'dynamodb': 'DynamoDB',
+    'supabase': 'Supabase',
+    'firebase': 'Firebase',
+    'bigquery': 'Google BigQuery',
+    'snowflake': 'Snowflake',
+    'redshift': 'Amazon Redshift',
+    'sqlite': 'SQLite',
+    'aws': 'AWS Cloud',
+    'amazon web services': 'AWS Cloud',
+    'gcp': 'Google Cloud (GCP)',
+    'google cloud': 'Google Cloud (GCP)',
+    'azure': 'Microsoft Azure',
+    'docker': 'Docker',
+    'kubernetes': 'Kubernetes',
+    'terraform': 'Terraform (IaC)',
+    'ci/cd': 'CI/CD Automation',
+    'ci/cd pipelines': 'CI/CD Pipelines',
+    'github actions': 'GitHub Actions',
+    'gitlab ci': 'GitLab CI',
+    'jenkins': 'Jenkins',
+    'linux': 'Linux',
+    'prometheus': 'Prometheus',
+    'grafana': 'Grafana',
+    'helm': 'Helm',
+    'ansible': 'Ansible',
+    'cloud infrastructure': 'Cloud Infrastructure',
+    'serverless': 'Serverless Architecture',
+    'nginx': 'Nginx',
+    'agile/scrum': 'Agile / Scrum',
+    'agile': 'Agile Methodology',
+    'scrum': 'Scrum Framework',
+    'jira': 'Jira',
+    'unit testing': 'Unit Testing',
+    'integration testing': 'Integration Testing',
+    'tdd': 'Test-Driven Development (TDD)',
+    'automated testing': 'Automated Testing',
+    'system architecture': 'System Architecture',
+    'distributed systems': 'Distributed Systems',
+    'git': 'Git Version Control'
+}
 
-def calculate_raw_cosine(resume_text: str, job_description: str) -> float:
-    """Return raw cosine similarity."""
-    if not resume_text.strip() or not job_description.strip():
-        return 0.0
-    vectorizer = TfidfVectorizer(stop_words="english")
-    vectors = vectorizer.fit_transform([resume_text, job_description])
-    return float(cosine_similarity(vectors[0:1], vectors[1:2])[0][0])
 
-
-def extract_keywords_and_gaps(resume_text: str, job_description: str) -> Dict[str, List[str]]:
-    """Extract missing and matched skills and technical phrases."""
-    resume_lower = resume_text.lower()
-    jd_lower = job_description.lower()
+def extract_skills_and_keywords(job_description: str, resume_text: str) -> Dict[str, List[str]]:
+    jd_lower = (job_description or '').lower()
+    resume_lower = (resume_text or '').lower()
 
     missing = []
     matched = []
-    checked_phrases = set()
+    matched_canonical_keys = set()
 
-    # 1. Check compound technical phrases
-    for phrase in COMPOUND_PHRASES:
-        if phrase in jd_lower:
-            checked_phrases.add(phrase)
-            is_matched = phrase in resume_lower
-            formatted = " ".join(w.capitalize() for w in phrase.split())
-            if is_matched:
-                if formatted not in matched:
-                    matched.append(formatted)
+    sorted_canonical = sorted(CANONICAL_SKILLS_TAXONOMY, key=len, reverse=True)
+
+    for skill in sorted_canonical:
+        escaped = re.escape(skill)
+        pattern = rf'(^|[^a-zA-Z0-9#+.-]){escaped}([^a-zA-Z0-9#+.-]|$)'
+        
+        if re.search(pattern, jd_lower):
+            if any(skill in k and k != skill for k in matched_canonical_keys):
+                continue
+
+            matched_canonical_keys.add(skill)
+            is_present = bool(re.search(pattern, resume_lower))
+            display_name = SKILL_DISPLAY_NAMES.get(skill, skill.title())
+
+            if is_present:
+                if display_name not in matched:
+                    matched.append(display_name)
             else:
-                if formatted not in missing:
-                    missing.append(formatted)
+                if display_name not in missing:
+                    missing.append(display_name)
 
-    # 2. Extract clean single tokens from JD
-    raw_words = re.findall(r'\b[a-zA-Z0-9#+.-]{2,}\b', jd_lower)
-    freq: Dict[str, int] = {}
-    for w in raw_words:
-        clean = w.strip(".,;:()[]{}'\"")
-        if (
-            len(clean) >= 2
-            and clean not in EXPANDED_STOP_WORDS
-            and not clean.isdigit()
-            and not any(clean in p for p in checked_phrases)
-        ):
-            freq[clean] = freq.get(clean, 0) + 1
-
-    sorted_terms = sorted(freq.keys(), key=lambda k: freq[k], reverse=True)
-
-    for term in sorted_terms:
-        pattern = r'\b' + re.escape(term) + r'\b'
-        is_matched = bool(re.search(pattern, resume_lower))
-
-        formatted = (
-            term.upper()
-            if term in {'api', 'sql', 'aws', 'gcp', 'ui', 'ux', 'ci', 'cd', 'ml', 'ai', 'rest', 'nlp', 'git'}
-            else term.title()
-        )
-
-        if is_matched:
-            if formatted not in matched and len(matched) < 12:
-                matched.append(formatted)
-        else:
-            if formatted not in missing and len(missing) < 10:
-                missing.append(formatted)
-
-    return {
-        "missing_keywords": missing,
-        "matched_keywords": matched,
-    }
+    return {"missing_keywords": missing, "matched_keywords": matched}
 
 
-def compute_realistic_match_score(raw_cosine: float, matched_count: int, missing_count: int) -> float:
-    """
-    Skill-weighted ATS score calculation.
-    """
+def compute_realistic_match_score(matched_count: int, missing_count: int) -> float:
     total = matched_count + missing_count
     if total == 0:
         return 50.0
@@ -163,53 +245,43 @@ def compute_realistic_match_score(raw_cosine: float, matched_count: int, missing
     skill_coverage = (matched_count / total) * 100.0
 
     if skill_coverage >= 80:
-        calibrated = 82.0 + (skill_coverage - 80.0) * 0.8
+        calibrated = 85.0 + (skill_coverage - 80.0) * 0.65
     elif skill_coverage >= 50:
-        calibrated = 65.0 + (skill_coverage - 50.0) * 0.55
+        calibrated = 68.0 + (skill_coverage - 50.0) * 0.55
     elif skill_coverage >= 25:
-        calibrated = 40.0 + (skill_coverage - 25.0) * 1.0
+        calibrated = 45.0 + (skill_coverage - 25.0) * 0.9
     else:
-        calibrated = max(12.0, skill_coverage * 1.6)
+        calibrated = max(15.0, skill_coverage * 1.8)
 
-    final_score = (0.85 * calibrated) + (0.15 * min(100.0, (raw_cosine / 0.30) * 75.0))
-    return round(min(98.0, max(10.0, final_score)), 1)
+    return round(min(98.0, max(10.0, calibrated)), 1)
 
 
 def generate_lacking_areas(missing_keywords: List[str], score: float) -> List[Dict[str, str]]:
-    """Determine what specific aspects the resume is lacking."""
     lacking = []
     top_missing_str = ", ".join(missing_keywords[:4]) if missing_keywords else ""
 
     if score < 50:
         lacking.append({
-            "title": "🚨 Severe Keyword & Technical Skill Disconnect",
-            "description": f"Your resume is missing critical technical keywords emphasized in the job description: {top_missing_str or 'essential tools and frameworks'}. Applicant Tracking Systems (ATS) will likely filter your application out before review."
+            "title": "🚨 Major Technical Skill Disconnect",
+            "description": f"Your resume is missing fundamental core technologies required for this role: {top_missing_str or 'essential tools'}. ATS parsers will likely filter out the application."
         })
         lacking.append({
             "title": "⚠️ Role Title & Core Experience Mismatch",
-            "description": "Your resume headline and work history do not explicitly align with the required job role and core technical responsibilities."
-        })
-        lacking.append({
-            "title": "📉 Lack of Targeted Project & Technology Bullet Points",
-            "description": "Your listed projects and accomplishments do not demonstrate hands-on experience solving challenges with the required stack."
+            "description": "Your headline and experience bullet points do not explicitly align with the primary technologies demanded in the job posting."
         })
     elif score < 75:
         lacking.append({
-            "title": "⚠️ Secondary Tooling & Methodology Gap",
-            "description": f"While your core technical stack is strong, you can optimize your score by explicitly incorporating: {top_missing_str or 'secondary requirements'}."
-        })
-        lacking.append({
-            "title": "🔍 Keyword Density & Phrasing Alignment",
-            "description": "Certain industry-standard terms in the job posting are described differently in your resume, reducing semantic match score."
+            "title": "⚠️ Secondary Methodologies & Tooling Gap",
+            "description": f"You have strong foundational alignment! To boost your ATS ranking, consider incorporating: {top_missing_str or 'secondary requirements'}."
         })
         lacking.append({
             "title": "📊 Measurable Accomplishments & Scale",
-            "description": "Add more quantifiable metrics (e.g. model accuracy %, latency reduced, datasets processed) to prove real-world production impact."
+            "description": "Add more quantifiable metrics (e.g. % accuracy, scale, latency reduced, revenue impact) to prove real-world production impact."
         })
     else:
         lacking.append({
-            "title": "🌟 High Technical Skill Alignment",
-            "description": "Your resume strongly demonstrates the primary technologies and tools required for this role."
+            "title": "🌟 Outstanding Technical Alignment",
+            "description": "Your resume demonstrates exceptional coverage of the core programming languages, tools, and libraries required for this role."
         })
         if top_missing_str:
             lacking.append({
@@ -221,20 +293,19 @@ def generate_lacking_areas(missing_keywords: List[str], score: float) -> List[Di
 
 
 def generate_improvement_suggestions(missing_keywords: List[str], score: float) -> List[Dict[str, str]]:
-    """Generate concrete, actionable advice on how to improve the resume."""
     suggestions = []
 
     if missing_keywords:
-        sample_keys = ", ".join(missing_keywords[:4])
+        sample_keys = ", ".join(missing_keywords[:3])
         suggestions.append({
             "category": "1. Inject Missing Methodologies into Bullets",
-            "action": f"Incorporate absent terms ({sample_keys}) naturally into your Work Experience bullet points and Projects section.",
+            "action": f"Incorporate absent terms ({sample_keys}) naturally into your Work Experience and Featured Projects sections with contextual usage.",
             "impact": "High Impact (ATS Ranking)"
         })
     else:
         suggestions.append({
-            "category": "1. Keyword Frequency Alignment",
-            "action": "Ensure core technical requirements from the posting appear 2-3 times across your resume sections naturally.",
+            "category": "1. Keyword Alignment",
+            "action": "Ensure all key terms and technologies mentioned in the job description appear at least 2-3 times across your resume sections.",
             "impact": "High Impact (ATS Ranking)"
         })
 
@@ -249,13 +320,6 @@ def generate_improvement_suggestions(missing_keywords: List[str], score: float) 
         "action": "Categorize your skills section into Languages, Libraries/Frameworks, Databases, and Tools matching the job description order.",
         "impact": "Medium Impact (Readability)"
     })
-
-    if score < 70:
-        suggestions.append({
-            "category": "4. Tailor Summary to the Target Job Title",
-            "action": "Align your 3-line professional summary at the very top of your resume with the exact job title and core requirements.",
-            "impact": "Medium Impact (First Impression)"
-        })
 
     return suggestions
 
@@ -273,19 +337,14 @@ async def analyze_resume(
         if not resume_text:
             raise HTTPException(status_code=400, detail="Could not extract text from the uploaded PDF. Please make sure it is not a scanned image PDF.")
 
-        raw_cosine = calculate_raw_cosine(resume_text, job_description)
-        gap_data = extract_keywords_and_gaps(resume_text, job_description)
-        
+        gap_data = extract_skills_and_keywords(job_description, resume_text)
         missing_keywords = gap_data["missing_keywords"]
         matched_keywords = gap_data["matched_keywords"]
 
-        # Compute realistic calibrated match score
-        match_score = compute_realistic_match_score(raw_cosine, len(matched_keywords), len(missing_keywords))
-
+        match_score = compute_realistic_match_score(len(matched_keywords), len(missing_keywords))
         lacking_areas = generate_lacking_areas(missing_keywords, match_score)
         improvement_suggestions = generate_improvement_suggestions(missing_keywords, match_score)
 
-        # Snippet (first 400 chars for good readability)
         snippet = resume_text[:400] + ("..." if len(resume_text) > 400 else "")
 
         return {
