@@ -1,0 +1,18 @@
+# Node
+node_modules/
+npm-debug.log
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+env/
+.pytest_cache/
+
+# Environment
+.env
+.DS_Store
+
+# Uploads
+uploads/
+test_resumes/
