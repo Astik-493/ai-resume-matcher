@@ -57,11 +57,41 @@ app.post('/api/match', upload.single('file'), async (req, res) => {
     console.log("✅ Match saved to database!");
 
     // Send the full analysis result back to the React frontend
-    res.json(pythonResponse.data);
+    res.json({
+      ...pythonResponse.data,
+      matchId: newMatch._id,
+      createdAt: newMatch.createdAt,
+    });
 
   } catch (error) {
     console.error('Error in pipeline:', error.message);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// GET /api/history - Fetch recent match history from MongoDB Atlas
+app.get('/api/history', async (req, res) => {
+  try {
+    const history = await Match.find()
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select('-__v');
+    res.json(history);
+  } catch (error) {
+    console.error('Error fetching history:', error.message);
+    res.status(500).json({ error: 'Failed to retrieve match history' });
+  }
+});
+
+// DELETE /api/history/:id - Delete a specific scan record
+app.delete('/api/history/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Match.findByIdAndDelete(id);
+    res.json({ status: 'success', message: 'Match record deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting match record:', error.message);
+    res.status(500).json({ error: 'Failed to delete match record' });
   }
 });
 
