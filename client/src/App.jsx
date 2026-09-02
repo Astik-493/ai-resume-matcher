@@ -21,10 +21,15 @@ import {
   LayoutGrid,
   Edit3,
   RotateCcw,
-  Compass
+  Compass,
+  History,
+  Download,
+  Trash2,
+  Zap
 } from 'lucide-react'
 import { ROLE_CATEGORIES, generateSmartJobDescription } from './jobTemplates'
 import { analyzeGapsAndImprovements } from './analysisEngine'
+import { generateTailoredBullet, calculateSubScores, exportReportMarkdown } from './bulletGenerator'
 import './App.css'
 
 function App() {
@@ -34,6 +39,7 @@ function App() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [copiedBullet, setCopiedBullet] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
 
   // JD Assistant state
@@ -43,7 +49,39 @@ function App() {
   const [selectedRole, setSelectedRole] = useState('fullstack')
   const [isGeneratingJd, setIsGeneratingJd] = useState(false)
 
+  // Live Bullet Generator state
+  const [selectedBulletSkill, setSelectedBulletSkill] = useState('')
+  const [generatedBullet, setGeneratedBullet] = useState('')
+
+  // History state
+  const [showHistory, setShowHistory] = useState(false)
+  const [historyList, setHistoryList] = useState([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
   const fileInputRef = useRef(null)
+
+  // Fetch match history from MongoDB Atlas
+  const fetchHistory = async () => {
+    setLoadingHistory(true)
+    try {
+      const res = await axios.get('http://localhost:5001/api/history')
+      setHistoryList(res.data || [])
+    } catch (err) {
+      console.error('Failed to fetch history:', err)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const handleDeleteHistory = async (id, e) => {
+    e.stopPropagation()
+    try {
+      await axios.delete(`http://localhost:5001/api/history/${id}`)
+      setHistoryList((prev) => prev.filter((item) => item._id !== id))
+    } catch (err) {
+      console.error('Failed to delete history item:', err)
+    }
+  }
 
   // Handle PDF file selection
   const handleFileChange = (e) => {
@@ -90,17 +128,16 @@ function App() {
     }
   }
 
-  // Handle Role Preset Selection
+  // Role Preset Selection
   const handleSelectRolePreset = (role) => {
     setSelectedRole(role.id)
     const desc = role.descriptions[selectedSeniority] || role.descriptions.mid || Object.values(role.descriptions)[0]
     setJobDescription(desc)
   }
 
-  // Handle AI Auto-generate / expand from brief notes
+  // AI Auto-generate / expand from brief notes
   const handleAiGenerateJd = () => {
     if (!aiPrompt.trim()) {
-      // If prompt empty, generate based on current selected role
       const generated = generateSmartJobDescription(selectedRole, selectedSeniority)
       setJobDescription(generated)
       return
@@ -164,6 +201,7 @@ function App() {
     setError(null)
     setAiPrompt('')
     setSelectedRole('')
+    setGeneratedBullet('')
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -174,6 +212,19 @@ function App() {
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleCopyBullet = (text) => {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopiedBullet(true)
+    setTimeout(() => setCopiedBullet(false), 2000)
+  }
+
+  const handleGenerateBulletForSkill = (skill) => {
+    setSelectedBulletSkill(skill)
+    const bullet = generateTailoredBullet(skill, selectedRole)
+    setGeneratedBullet(bullet)
   }
 
   const formatFileSize = (bytes) => {
@@ -252,6 +303,32 @@ function App() {
     ? result.improvement_suggestions
     : fallbackAnalysis.improvement_suggestions
 
+  // Multi-Pillar Sub-Scores
+  const subScores = calculateSubScores(
+    score,
+    missingKeywords.length,
+    matchedKeywords.length,
+    result?.word_count?.resume || 300
+  )
+
+  // Export report handler
+  const handleExportReport = () => {
+    const markdown = exportReportMarkdown(
+      score,
+      missingKeywords,
+      matchedKeywords,
+      lackingAreas,
+      improvementSuggestions,
+      result?.resume_snippet
+    )
+    const blob = new Blob([markdown], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `resume_match_report_${score}pct.md`
+    link.click()
+  }
+
   return (
     <div className="app-viewport">
       <div className="ambient-glow ambient-glow-1"></div>
@@ -278,8 +355,21 @@ function App() {
               <span className="status-dot"></span>
               <span>NLP Match Engine Ready</span>
             </div>
+
+            <button
+              className="btn-nav-action"
+              onClick={() => {
+                fetchHistory()
+                setShowHistory(true)
+              }}
+              title="View Scan History"
+            >
+              <History size={15} />
+              <span>History</span>
+            </button>
+
             {(file || jobDescription || result) && (
-              <button className="btn-secondary-reset" onClick={handleResetAll}>
+              <button className="btn-nav-action" onClick={handleResetAll}>
                 <RotateCcw size={14} />
                 <span>Reset</span>
               </button>
@@ -600,10 +690,23 @@ function App() {
 
                 {/* Score Details Side */}
                 <div className="score-meta-side">
-                  <div className={`score-status-pill ${badgeInfo.class}`}>
-                    {badgeInfo.icon}
-                    <span>{badgeInfo.label}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div className={`score-status-pill ${badgeInfo.class}`}>
+                      {badgeInfo.icon}
+                      <span>{badgeInfo.label}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-nav-action"
+                      onClick={handleExportReport}
+                      title="Download full analysis as Markdown"
+                    >
+                      <Download size={14} />
+                      <span>Export Report</span>
+                    </button>
                   </div>
+
                   <h3 className="score-main-headline">{badgeInfo.headline}</h3>
                   <p className="score-main-desc">{badgeInfo.explanation}</p>
 
@@ -629,16 +732,133 @@ function App() {
                         <FileText size={20} color="#818cf8" />
                         <div>
                           <div className="stat-capsule-val">{result.word_count.resume}</div>
-                          <div className="stat-capsule-name">Resume Word Count</div>
+                          <div className="stat-capsule-name">Resume Words</div>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
+
+              {/* Multi-Pillar Sub-Scores Progress */}
+              <div className="subscores-grid">
+                <div className="subscore-box">
+                  <div className="subscore-header">
+                    <span className="subscore-title">🎯 Technical Skills</span>
+                    <span className="subscore-value">{subScores.skillsScore}%</span>
+                  </div>
+                  <div className="subscore-bar-bg">
+                    <div
+                      className="subscore-bar-fill"
+                      style={{ width: `${subScores.skillsScore}%`, background: '#6366f1' }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="subscore-box">
+                  <div className="subscore-header">
+                    <span className="subscore-title">🏢 Role Experience</span>
+                    <span className="subscore-value">{subScores.roleScore}%</span>
+                  </div>
+                  <div className="subscore-bar-bg">
+                    <div
+                      className="subscore-bar-fill"
+                      style={{ width: `${subScores.roleScore}%`, background: '#a855f7' }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="subscore-box">
+                  <div className="subscore-header">
+                    <span className="subscore-title">📐 ATS Density</span>
+                    <span className="subscore-value">{subScores.formattingScore}%</span>
+                  </div>
+                  <div className="subscore-bar-bg">
+                    <div
+                      className="subscore-bar-fill"
+                      style={{ width: `${subScores.formattingScore}%`, background: '#06b6d4' }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="subscore-box">
+                  <div className="subscore-header">
+                    <span className="subscore-title">⚡ Impact Rating</span>
+                    <span className="subscore-value">{subScores.impactScore}%</span>
+                  </div>
+                  <div className="subscore-bar-bg">
+                    <div
+                      className="subscore-bar-fill"
+                      style={{ width: `${subScores.impactScore}%`, background: '#10b981' }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Two Column: Keywords Analysis */}
+            {/* AI Interactive Resume Bullet Point Optimizer */}
+            <div className="bullet-generator-card">
+              <div className="bullet-gen-header">
+                <div className="bullet-gen-title-group">
+                  <div className="panel-icon-box" style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}>
+                    <Zap size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '1.2rem', color: '#ffffff' }}>
+                      AI Resume Bullet Tailorer (Google XYZ Formula)
+                    </h4>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '0.825rem', color: '#94a3b8' }}>
+                      Click any missing skill below to auto-generate a high-impact, ATS-optimized accomplishment bullet:
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bullet-gen-chips-row">
+                {missingKeywords.slice(0, 8).map((skill, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    className={`bullet-skill-chip ${selectedBulletSkill === skill ? 'active' : ''}`}
+                    onClick={() => handleGenerateBulletForSkill(skill)}
+                  >
+                    <Sparkles size={12} color="#c084fc" />
+                    <span>Generate for {skill}</span>
+                  </button>
+                ))}
+              </div>
+
+              {generatedBullet && (
+                <div className="generated-bullet-box">
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      ✨ Optimized Bullet Point ({selectedBulletSkill}):
+                    </span>
+                    <p className="bullet-text-rendered">"{generatedBullet}"</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-copy-code"
+                    onClick={() => handleCopyBullet(generatedBullet)}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {copiedBullet ? (
+                      <>
+                        <Check size={14} color="#10b981" />
+                        <span style={{ color: '#10b981' }}>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={14} />
+                        <span>Copy Bullet</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Two Column: Keywords Analysis with Search Filter */}
             <div className="two-col-grid">
               {/* Missing Keywords Box */}
               <div className="detail-card">
@@ -651,13 +871,21 @@ function App() {
                     {missingKeywords.length} Absent
                   </span>
                 </div>
+
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '0 0 0.85rem 0' }}>
                   These key competencies in the job description were not found in your resume:
                 </p>
+
                 {missingKeywords.length > 0 ? (
                   <div className="keywords-badge-cloud">
                     {missingKeywords.map((kw, idx) => (
-                      <span key={idx} className="badge-missing">
+                      <span
+                        key={idx}
+                        className="badge-missing"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => handleGenerateBulletForSkill(kw)}
+                        title="Click to generate bullet point"
+                      >
                         <X size={12} /> {kw}
                       </span>
                     ))}
@@ -682,9 +910,11 @@ function App() {
                     {matchedKeywords.length} Present
                   </span>
                 </div>
+
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '0 0 0.85rem 0' }}>
                   Successfully identified competencies that match the role requirements:
                 </p>
+
                 {matchedKeywords.length > 0 ? (
                   <div className="keywords-badge-cloud">
                     {matchedKeywords.map((kw, idx) => (
@@ -798,6 +1028,72 @@ function App() {
                 {result.resume_snippet ||
                   result.parsed_text ||
                   'No extracted text available.'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* History Modal */}
+        {showHistory && (
+          <div className="modal-overlay" onClick={() => setShowHistory(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div className="modal-title">
+                  <History size={20} color="#818cf8" />
+                  <span>Recent Scans History (MongoDB Atlas)</span>
+                </div>
+                <button
+                  className="btn-close-alert"
+                  onClick={() => setShowHistory(false)}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {loadingHistory ? (
+                  <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <Loader2 size={24} className="spin-loader" />
+                    <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>Loading past scans...</p>
+                  </div>
+                ) : historyList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <p style={{ color: '#94a3b8' }}>No previous scans recorded yet.</p>
+                  </div>
+                ) : (
+                  historyList.map((item) => (
+                    <div key={item._id} className="history-item-row">
+                      <div style={{ textAlign: 'left', flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>
+                          {item.jobDescription.split('\n')[0].substring(0, 50) || 'Job Match Scan'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                          {new Date(item.createdAt).toLocaleString()} • {item.missingKeywords?.length || 0} missing keywords
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div
+                          className="history-score-tag"
+                          style={{
+                            color: getScoreColor(item.matchScore),
+                            background: `${getScoreColor(item.matchScore)}15`
+                          }}
+                        >
+                          {item.matchScore}%
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-remove-selected"
+                          onClick={(e) => handleDeleteHistory(item._id, e)}
+                          title="Delete from history"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
