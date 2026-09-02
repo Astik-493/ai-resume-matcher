@@ -1,64 +1,71 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const axios = require('axios');
+const mongoose = require('mongoose');
 const FormData = require('form-data');
 
+// Import our database model
+const Match = require('./models/Match');
+
 const app = express();
-const PORT = process.env.PORT || 5001;
-const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://127.0.0.1:8000/api/v1/analyze';
+const port = 5001;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Configure Multer with memory storage
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+// Set up multer for temporary file uploads in memory
+const upload = multer({ storage: multer.memoryStorage() });
 
-// POST /api/match endpoint
+// Connect to MongoDB Atlas
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ Successfully connected to MongoDB Atlas!"))
+  .catch((error) => console.error("❌ MongoDB connection error:", error));
+
+// Main route: React -> Node -> Python -> Database -> React
 app.post('/api/match', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded under field name "file"' });
+      return res.status(400).json({ error: 'No resume file provided' });
     }
 
-    const { job_description } = req.body;
-    if (!job_description) {
-      return res.status(400).json({ error: 'Missing "job_description" in request' });
-    }
+    const jobDescription = req.body.job_description || "";
 
-    // Build multipart/form-data payload to forward to Python service
+    // Package the file and job description to send to Python (FastAPI)
     const formData = new FormData();
-    formData.append('file', req.file.buffer, {
-      filename: req.file.originalname,
-      contentType: req.file.mimetype,
-    });
-    formData.append('job_description', job_description);
+    formData.append('file', req.file.buffer, req.file.originalname);
+    formData.append('job_description', jobDescription);
 
-    // Forward request to Python API
-    const response = await axios.post(PYTHON_API_URL, formData, {
+    // Forward request to Python service on Port 8000
+    const pythonResponse = await axios.post('http://localhost:8000/api/v1/analyze', formData, {
       headers: {
         ...formData.getHeaders(),
       },
     });
 
-    return res.status(response.status).json(response.data);
-  } catch (error) {
-    if (error.response) {
-      // The Python server returned an error response status
-      return res.status(error.response.status).json(error.response.data);
-    }
-
-    // Network / connection error or Python server is down
-    console.error('Error contacting Python ML service:', error.message);
-    return res.status(502).json({
-      error: 'Unable to communicate with the ML analysis service. Please ensure the Python server is running.',
-      details: error.message,
+    // Save the match record into MongoDB Atlas
+    const newMatch = new Match({
+      jobDescription: jobDescription,
+      resumeSnippet: pythonResponse.data.resume_snippet || "Snippet not found",
+      matchScore: pythonResponse.data.match_score,
+      missingKeywords: pythonResponse.data.missing_keywords || []
     });
+
+    await newMatch.save();
+    console.log("✅ Match saved to database!");
+
+    // Send the full analysis result back to the React frontend
+    res.json(pythonResponse.data);
+
+  } catch (error) {
+    console.error('Error in pipeline:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Express server running on http://localhost:${PORT}`);
+// Start the server
+app.listen(port, () => {
+  console.log(`Express server running on http://localhost:${port}`);
 });
