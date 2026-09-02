@@ -5,7 +5,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://127.0.0.1:8000/api/v1/analyze';
 
 // Middleware
