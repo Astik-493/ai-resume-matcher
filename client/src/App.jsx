@@ -135,6 +135,44 @@ function App() {
     setJobDescription(desc)
   }
 
+  // Load Demo Candidate Profile & Role for 1-Click Evaluation
+  const handleLoadDemo = () => {
+    const demoRole = ROLE_CATEGORIES[0].roles[0] // Full-Stack Engineer
+    setSelectedRole(demoRole.id)
+    setSelectedSeniority('senior')
+    const demoJd = demoRole.descriptions.senior || Object.values(demoRole.descriptions)[0]
+    setJobDescription(demoJd)
+
+    const sampleResumeText = `Aarav Mehta
+Bengaluru, India | aarav.mehta@example.com | linkedin.com/in/aarav-mehta
+
+PROFESSIONAL SUMMARY
+Senior Full-Stack & AI Engineer with 5+ years of experience architecting high-scale distributed systems, React applications, and FastAPI microservices. Proficient in TypeScript, Node.js, Python, PostgreSQL, Redis, Docker, and AWS.
+
+EXPERIENCE
+Lead Full-Stack Developer | InnovateTech (2022 - Present)
+- Engineered scalable microservices with Node.js, Express, and FastAPI processing 5M+ API requests daily with 99.98% uptime.
+- Architected enterprise React and Next.js frontend interfaces utilizing Redux and Tailwind CSS, slashing page load times by 42%.
+- Designed and optimized PostgreSQL and MongoDB schemas with Redis caching, reducing query latency from 240ms to 28ms.
+- Built automated CI/CD deployment pipelines using Docker, Kubernetes, and GitHub Actions across AWS and GCP environments.
+
+Software Engineer | CloudScale Inc. (2020 - 2022)
+- Developed RESTful APIs with Python, FastAPI, and PostgreSQL supporting real-time data ingestion.
+- Implemented unit testing and integration testing with Jest and PyTest, achieving 92% code test coverage.
+- Integrated OpenAI embeddings and vector search for semantic document retrieval.
+
+TECHNICAL SKILLS
+Languages: JavaScript, TypeScript, Python, SQL, HTML5, CSS3, Bash
+Frameworks & Libraries: React, Next.js, Node.js, Express, FastAPI, Redux, Tailwind CSS, Jest
+Databases & Cloud: PostgreSQL, MongoDB, Redis, AWS, Docker, Kubernetes, CI/CD, Git
+Methodologies: Agile/Scrum, System Architecture, Microservices, REST APIs`
+
+    const blob = new Blob([sampleResumeText], { type: 'application/pdf' })
+    const demoFile = new File([blob], 'Aarav_Mehta_Senior_FullStack_Resume.pdf', { type: 'application/pdf' })
+    setFile(demoFile)
+    setError(null)
+  }
+
   // AI Auto-generate / expand from brief notes
   const handleAiGenerateJd = () => {
     if (!aiPrompt.trim()) {
@@ -358,6 +396,15 @@ function App() {
 
             <button
               className="btn-nav-action"
+              onClick={handleLoadDemo}
+              title="Load sample candidate profile and role for instant testing"
+            >
+              <Zap size={15} color="#fbbf24" />
+              <span>Try Demo</span>
+            </button>
+
+            <button
+              className="btn-nav-action"
               onClick={() => {
                 fetchHistory()
                 setShowHistory(true)
@@ -449,6 +496,34 @@ function App() {
               </p>
               <p className="dropzone-subline">Select your existing PDF resume</p>
             </div>
+
+            {!file && (
+              <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleLoadDemo}
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    border: '1px solid rgba(99, 102, 241, 0.25)',
+                    color: '#a5b4fc',
+                    fontSize: '0.8rem',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontWeight: 500,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)')}
+                >
+                  <Sparkles size={14} color="#818cf8" />
+                  <span>Don&apos;t have a PDF ready? <strong>Load Sample Profile &amp; Role</strong></span>
+                </button>
+              </div>
+            )}
 
             {file && (
               <div className="selected-file-card">
