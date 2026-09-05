@@ -324,6 +324,15 @@ def generate_improvement_suggestions(missing_keywords: List[str], score: float) 
     return suggestions
 
 
+@app.get("/api/v1/health")
+async def health_check() -> Dict[str, Any]:
+    return {
+        "status": "healthy",
+        "service": "ml_service",
+        "taxonomy_size": len(CANONICAL_SKILLS_TAXONOMY)
+    }
+
+
 @app.post("/api/v1/analyze")
 async def analyze_resume(
     file: UploadFile = File(...),
@@ -331,11 +340,17 @@ async def analyze_resume(
 ) -> Dict[str, Any]:
     try:
         file_contents = await file.read()
-        with pdfplumber.open(io.BytesIO(file_contents)) as pdf:
-            resume_text = "\n".join(page.extract_text() or "" for page in pdf.pages).strip()
+        resume_text = ""
+        
+        try:
+            with pdfplumber.open(io.BytesIO(file_contents)) as pdf:
+                resume_text = "\n".join(page.extract_text() or "" for page in pdf.pages).strip()
+        except Exception:
+            # Fallback to UTF-8 decoding for demo synthetic blobs or plain text
+            resume_text = file_contents.decode("utf-8", errors="ignore").strip()
 
         if not resume_text:
-            raise HTTPException(status_code=400, detail="Could not extract text from the uploaded PDF. Please make sure it is not a scanned image PDF.")
+            raise HTTPException(status_code=400, detail="Could not extract text from the uploaded document. Please upload a valid text or PDF file.")
 
         gap_data = extract_skills_and_keywords(job_description, resume_text)
         missing_keywords = gap_data["missing_keywords"]
